@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use bytes::Bytes;
 use crossbeam_skiplist::SkipMap;
 use ouroboros::self_referencing;
@@ -13,6 +13,7 @@ use ouroboros::self_referencing;
 use crate::iterators::StorageIterator;
 use crate::table::SsTableBuilder;
 use crate::wal::Wal;
+use crossbeam_skiplist::map::Entry;
 
 /// A basic mem-table based on crossbeam-skiplist.
 ///
@@ -37,12 +38,22 @@ pub(crate) fn map_bound(bound: Bound<&[u8]>) -> Bound<Bytes> {
 impl MemTable {
     /// Create a new mem-table.
     pub fn create(_id: usize) -> Self {
-        unimplemented!()
+        Self {
+            map: Arc::new(SkipMap::new()),
+            wal: None,
+            id: 0,
+            approximate_size: Arc::new(AtomicUsize::new(0)),
+        }
     }
 
     /// Create a new mem-table with WAL
     pub fn create_with_wal(_id: usize, _path: impl AsRef<Path>) -> Result<Self> {
-        unimplemented!()
+        Ok(Self {
+            map: Arc::new(SkipMap::new()),
+            wal: Some(Wal::create(_path)?),
+            id: 0,
+            approximate_size: Arc::new(AtomicUsize::new(0)),
+        })
     }
 
     /// Create a memtable from WAL
@@ -52,7 +63,9 @@ impl MemTable {
 
     /// Get a value by key.
     pub fn get(&self, _key: &[u8]) -> Option<Bytes> {
-        unimplemented!()
+        self.map.get(_key).map(|entry| {
+            entry.value().clone()
+        })
     }
 
     /// Put a key-value pair into the mem-table.
@@ -60,7 +73,10 @@ impl MemTable {
     /// In week 1, day 1, simply put the key-value pair into the skipmap.
     /// In week 2, day 6, also flush the data to WAL.
     pub fn put(&self, _key: &[u8], _value: &[u8]) -> Result<()> {
-        unimplemented!()
+        self.map.insert(Bytes::copy_from_slice(_key), Bytes::copy_from_slice(_value));
+        let size = _key.len() + _value.len();
+        self.approximate_size.fetch_add(size, std::sync::atomic::Ordering::Release);
+        Ok(())
     }
 
     pub fn sync_wal(&self) -> Result<()> {
@@ -72,12 +88,26 @@ impl MemTable {
 
     /// Get an iterator over a range of keys.
     pub fn scan(&self, _lower: Bound<&[u8]>, _upper: Bound<&[u8]>) -> MemTableIterator {
-        unimplemented!()
+        let (low, high) = (map_bound(_lower), map_bound(_upper));
+        let mut iter = MemTableIteratorBuilder {
+            map: self.map.clone(),
+            iter_builder: |map| map.range((low, high)),
+            item: (Bytes::from_static(&[]), Bytes::from_static(&[])),
+        }.build();
+
+        let entry = iter.with_iter_mut(|iter| MemTableIterator::entry_to_kv(iter.next()));
+        iter.with_mut(|x| *x.item = entry);
+        iter
     }
 
     /// Flush the mem-table to SSTable. Implement in week 1 day 6.
-    pub fn flush(&self, _builder: &mut SsTableBuilder) -> Result<()> {
-        unimplemented!()
+    pub fn flush(&self, builder: &mut SsTableBuilder) -> Result<()> {
+        for entry in self.map.iter() {
+            //Debug
+            // println!("[Memtable Debug]: Flush key {:?} : value: {:?}", entry.key(), entry.value());
+            builder.add(&entry.key(), &entry.value());
+        }
+        Ok(())
     }
 
     pub fn id(&self) -> usize {
@@ -114,20 +144,31 @@ pub struct MemTableIterator {
     item: (Bytes, Bytes),
 }
 
+impl MemTableIterator {
+    fn entry_to_kv(entry: Option<Entry<'_, Bytes, Bytes>>) -> (Bytes, Bytes) {
+        entry
+            .map(|x| (x.key().clone(), x.value().clone()))
+            .unwrap_or_else(|| (Bytes::from_static(&[]), Bytes::from_static(&[])))
+    }
+}
+
 impl StorageIterator for MemTableIterator {
     fn value(&self) -> &[u8] {
-        unimplemented!()
+        &self.borrow_item().1
     }
 
     fn key(&self) -> &[u8] {
-        unimplemented!()
+        &self.borrow_item().0
     }
 
     fn is_valid(&self) -> bool {
-        unimplemented!()
+        self.borrow_item().0.is_empty()
     }
 
     fn next(&mut self) -> Result<()> {
-        unimplemented!()
+        let entry = self.with_iter_mut(|iter| MemTableIterator::entry_to_kv(iter.next()));
+        self.with_mut(|x| *x.item = entry);
+        Ok(())
     }
 }
+

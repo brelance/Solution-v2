@@ -52,13 +52,14 @@ pub struct FileObject(Option<File>, u64);
 
 impl FileObject {
     pub fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>> {
-        use std::os::unix::fs::FileExt;
-        let mut data = vec![0; len as usize];
-        self.0
-            .as_ref()
-            .unwrap()
-            .read_exact_at(&mut data[..], offset)?;
-        Ok(data)
+        unimplemented!()
+        // use std::os::windows::fs::FileExt;
+        // let mut data = vec![0; len as usize];
+        // self.0
+        //     .as_ref()
+        //     .unwrap()
+        //     .read_exact_at(&mut data[..], offset)?;
+        // Ok(data)
     }
 
     pub fn size(&self) -> u64 {
