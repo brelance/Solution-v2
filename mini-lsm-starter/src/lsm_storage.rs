@@ -17,9 +17,10 @@ use crate::compact::{
     CompactionController, CompactionOptions, LeveledCompactionController, LeveledCompactionOptions,
     SimpleLeveledCompactionController, SimpleLeveledCompactionOptions, TieredCompactionController,
 };
+use crate::iterators::merge_iterator::MergeIterator;
 use crate::lsm_iterator::{FusedIterator, LsmIterator};
 use crate::manifest::Manifest;
-use crate::mem_table::MemTable;
+use crate::mem_table::{MemTable, MemTableIterator};
 use crate::table::SsTable;
 
 pub type BlockCache = moka::sync::Cache<(usize, usize), Arc<Block>>;
@@ -322,6 +323,16 @@ impl LsmStorageInner {
         _lower: Bound<&[u8]>,
         _upper: Bound<&[u8]>,
     ) -> Result<FusedIterator<LsmIterator>> {
-        unimplemented!()
+        let guard = self.state.read();
+        let mut mem_iters = Vec::new();
+
+        let mem_iter = guard.memtable.scan(_lower, _upper);
+        mem_iters.push(Box::new(mem_iter));
+        for imm_table in guard.imm_memtables.iter().rev() {
+            mem_iters.push(Box::new(imm_table.scan(_lower, _upper)));
+        }
+
+        let merge_mem_iter = MergeIterator::create(mem_iters);
+        Ok(FusedIterator::new(LsmIterator::new(merge_mem_iter)?))
     }
 }

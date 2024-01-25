@@ -1,7 +1,7 @@
 #![allow(unused_variables)] // TODO(you): remove this lint after implementing this mod
 #![allow(dead_code)] // TODO(you): remove this lint after implementing this mod
 
-use anyhow::Result;
+use anyhow::{Ok, Result, bail};
 
 use crate::{
     iterators::{merge_iterator::MergeIterator, StorageIterator},
@@ -17,25 +17,38 @@ pub struct LsmIterator {
 
 impl LsmIterator {
     pub(crate) fn new(iter: LsmIteratorInner) -> Result<Self> {
-        Ok(Self { inner: iter })
+        let mut iter = Self { inner: iter };
+        iter.skip_deleted()?;
+        Ok(iter)
     }
 }
 
 impl StorageIterator for LsmIterator {
     fn is_valid(&self) -> bool {
-        unimplemented!()
+        self.inner.is_valid()
     }
 
     fn key(&self) -> &[u8] {
-        unimplemented!()
+        self.inner.key()
     }
 
     fn value(&self) -> &[u8] {
-        unimplemented!()
+        self.inner.value()
     }
 
     fn next(&mut self) -> Result<()> {
-        unimplemented!()
+        self.inner.next()?;
+        self.skip_deleted();
+        Ok(())
+    }
+}
+
+impl LsmIterator {
+    fn skip_deleted(&mut self) -> Result<()> {
+        while self.is_valid() && self.value().is_empty() {
+            self.next()?;
+        }
+        Ok(())
     }
 }
 
@@ -44,17 +57,21 @@ impl StorageIterator for LsmIterator {
 /// `is_valid` should return false, and `next` should always return an error.
 pub struct FusedIterator<I: StorageIterator> {
     iter: I,
+    has_error: bool,
 }
 
 impl<I: StorageIterator> FusedIterator<I> {
     pub fn new(iter: I) -> Self {
-        Self { iter }
+        Self {
+            iter,
+            has_error: false, 
+        }
     }
 }
 
 impl<I: StorageIterator> StorageIterator for FusedIterator<I> {
     fn is_valid(&self) -> bool {
-        !self.iter.is_valid()
+        !self.has_error && self.iter.is_valid()
     }
 
     fn key(&self) -> &[u8] {
@@ -66,6 +83,16 @@ impl<I: StorageIterator> StorageIterator for FusedIterator<I> {
     }
 
     fn next(&mut self) -> Result<()> {
-        self.iter.next()
+        if self.has_error {
+            bail!("the iterator is tainted");
+        }
+
+        if self.iter.is_valid() {
+            if let Err(e) = self.iter.next() {
+                self.has_error = true;
+                return Err(e);
+            }
+        }
+        Ok(())
     }
 }
