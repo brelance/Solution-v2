@@ -2,7 +2,7 @@ use bytes::BufMut;
 
 use super::Block;
 use std::{collections::{BTreeMap}};
-
+use bytes::Bytes;
 /// Builds a block.
 pub struct BlockBuilder {
     block_size: usize,

@@ -72,14 +72,23 @@ impl Block {
         return self.data.len() + self.offsets.len() * 2 + 2;
     }
 
-    pub fn first_key(&self) -> Vec<u8> {
+    pub fn first_key(&self) -> Bytes {
         let mut key_len_buf = [0u8; 2];
         key_len_buf[0] = self.data[0];
         key_len_buf[1] = self.data[1];
 
         let key_len = u16::from_be_bytes(key_len_buf) as usize;
+        Bytes::copy_from_slice(&self.data[2..key_len + 2])
+    }
 
-        self.data[2..key_len + 2].to_vec()
+    pub fn last_key(&self) -> Bytes {
+        let offset = self.offsets.last().unwrap().clone() as usize;
+        let mut key_len_buf = [0u8; 2];
+        key_len_buf[0] = self.data[offset];
+        key_len_buf[1] = self.data[offset + 1];
+
+        let key_len = u16::from_be_bytes(key_len_buf) as usize;
+        Bytes::copy_from_slice(&self.data[offset + 2..offset + key_len + 2])
     }
 }
 
