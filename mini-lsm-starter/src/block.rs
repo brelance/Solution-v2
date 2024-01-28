@@ -187,7 +187,18 @@ mod test {
         let t1 = b"Key_3".to_vec();
         let t2 = b"Key_12".to_vec();
         assert_eq!(t1.cmp(&t2), std::cmp::Ordering::Greater);
-        
+    }
+
+    #[test]
+    fn test_last() {
+        let mut v = [1, 2, 3].to_vec();
+        assert_eq!(v.first().unwrap(), &1);
+        assert_eq!(v.last().unwrap(), &3);
+
+        v = [1].to_vec();
+        assert_eq!(v.first().unwrap(), &1);
+        assert_eq!(v.last().unwrap(), &1);
+
     }
 }
 

@@ -2,7 +2,6 @@ use bytes::BufMut;
 
 use super::Block;
 use std::{collections::{BTreeMap}};
-use bytes::Bytes;
 /// Builds a block.
 pub struct BlockBuilder {
     block_size: usize,
@@ -123,9 +122,10 @@ impl PartialOrd for Key {
 
 #[cfg(test)]
 mod user_tests {
+    use std::{env::temp_dir, fs::File};
+    use anyhow::{Ok, Result};
+
     use super::BlockBuilder;
-    use std::collections::BTreeMap;
-    use std::string;
     #[test]
     fn build_test() {
         let mut block_builder = BlockBuilder::new(4096);
@@ -144,4 +144,15 @@ mod user_tests {
         
         println!("string1.cmp(&string2): {:?}", string1.cmp(&string2)); // Ordering::Less
     }
+
+    #[test]
+    fn test_temp_dir() -> Result<()> {
+        use tempfile::{TempDir, tempdir};
+        let dir = tempdir().unwrap();
+        let contents = b"abbbbb";
+        std::fs::write(&dir, contents);
+        let file = File::open(&dir)?.sync_all()?;
+        Ok(())
+    }
+    
 }

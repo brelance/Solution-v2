@@ -6,6 +6,8 @@ mod builder;
 mod iterator;
 
 use std::fs::File;
+use std::io::Read;
+use std::os::windows::fs::FileExt;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -39,9 +41,16 @@ impl BlockMeta {
         buf: &mut Vec<u8>,
     ) {
         for meta in block_meta {
+            // Put meta block offset
             buf.put_u32(meta.offset as u32);
+            // Put the length of first key in the block
             buf.put_u16(meta.first_key.len() as u16);
             buf.extend_from_slice(&meta.first_key);
+
+            
+            // Put the length of last key in the block
+            buf.put_u16(meta.last_key.len() as u16);
+            buf.extend_from_slice(&meta.last_key);
         }
     }
 
@@ -53,6 +62,7 @@ impl BlockMeta {
             let offset = buf.get_u32() as usize;
             let first_key_len = buf.get_u16() as usize;
             let first_key = buf.copy_to_bytes(first_key_len);
+
             let last_key_len = buf.get_u16() as usize;
             let last_key = buf.copy_to_bytes(last_key_len);
 
@@ -76,14 +86,19 @@ pub struct FileObject(Option<File>, u64);
 
 impl FileObject {
     pub fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>> {
-        unimplemented!()
-        // use std::os::windows::fs::FileExt;
+        // unimplemented!()
+        // use std::os::fs::FileExt;
         // let mut data = vec![0; len as usize];
         // self.0
         //     .as_ref()
         //     .unwrap()
         //     .read_exact_at(&mut data[..], offset)?;
         // Ok(data)
+
+        let mut data = vec![0; len as usize];
+        let read_len = self.0.as_ref().unwrap().seek_read(&mut data, offset)?;
+        assert_eq!(len as usize, read_len);
+        Ok(data)
     }
 
     pub fn size(&self) -> u64 {
@@ -93,7 +108,7 @@ impl FileObject {
     /// Create a new file object (day 2) and write the file to the disk (day 4).
     pub fn create(path: &Path, data: Vec<u8>) -> Result<Self> {
         std::fs::write(path, &data)?;
-        File::open(path)?.sync_all()?;
+        let file = File::open(path)?.sync_all()?;
         Ok(FileObject(
             Some(File::options().read(true).write(false).open(path)?),
             data.len() as u64,
@@ -130,7 +145,61 @@ impl SsTable {
 
     /// Open SSTable from a file.
     pub fn open(id: usize, block_cache: Option<Arc<BlockCache>>, file: FileObject) -> Result<Self> {
-        unimplemented!()
+        let offset = file.size() - 4;
+        let offset_len = 4;
+        let mut buf = [0u8; 4];
+
+        file.read(offset, offset_len);
+        
+        let block_meta_offset = u32::from_be_bytes(buf) as usize;
+        let upbound = offset;
+        
+        let mut key_len_buf = [0u8; 2];
+        let key_len = 2;
+
+        let mut block_meta = Vec::new();
+        let mut meta_offset = block_meta_offset as u64;
+
+        while meta_offset < upbound {
+            // Read offset of block
+            file.read(meta_offset, offset_len);
+            let block_offset: u32 = u32::from_be_bytes(buf);
+            meta_offset += 4;
+
+            file.read(meta_offset, key_len);
+            let key_len = u16::from_be_bytes(key_len_buf) as u64;
+            meta_offset += 2;
+            let first_key = file.read(meta_offset, key_len)?;
+
+            file.read(meta_offset, key_len);
+            let key_len = u16::from_be_bytes(key_len_buf) as u64;
+            meta_offset += 2;
+            let last_key = file.read(meta_offset, key_len)?;
+            
+            block_meta.push(
+                BlockMeta {
+                    offset: block_offset as usize,
+                    first_key: first_key.into(),
+                    last_key: last_key.into(),
+                }
+            );
+
+            meta_offset += key_len;
+        }
+
+        let block_size = (block_meta[1].offset - block_meta[0].offset) as usize;
+        let first_key = block_meta.first().unwrap().first_key.clone();
+        let last_key = block_meta.last().unwrap().last_key.clone();
+        Ok(SsTable {
+             file,
+             block_meta, 
+             block_meta_offset, 
+             id,
+             block_cache: None,
+             first_key,
+             last_key,
+             bloom: None,
+        })
     }
 
     /// Create a mock SST with only first key + last key metadata
@@ -183,5 +252,45 @@ impl SsTable {
 
     pub fn sst_id(&self) -> usize {
         self.id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::{tempdir, TempDir};
+    use crate::table::{SsTable, SsTableBuilder};
+
+    fn key_of(idx: usize) -> Vec<u8> {
+        format!("key_{:03}", idx * 5).into_bytes()
+    }
+    
+    fn value_of(idx: usize) -> Vec<u8> {
+        format!("value_{:010}", idx).into_bytes()
+    }
+    
+    fn num_of_keys() -> usize {
+        5
+    }
+    
+    fn generate_sst() -> (TempDir, SsTable) {
+        let mut builder = SsTableBuilder::new(128);
+        for idx in 0..num_of_keys() {
+            let key = key_of(idx);
+            let value = value_of(idx);
+            builder.add(&key[..], &value[..]);
+        }
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("1.sst");
+        (dir, builder.build_for_test(path).unwrap())
+    }
+
+    #[test]
+    fn test1() {
+        let (_dir, sst) = generate_sst();
+        let meta = sst.block_meta.clone();
+        let new_sst = SsTable::open_for_test(sst.file).unwrap();
+        assert_eq!(new_sst.block_meta, meta);
+        assert_eq!(new_sst.first_key(), &key_of(0));
+        assert_eq!(new_sst.last_key(), &key_of(num_of_keys() - 1));
     }
 }

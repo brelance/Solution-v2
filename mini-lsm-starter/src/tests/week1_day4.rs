@@ -4,12 +4,13 @@ use bytes::Bytes;
 use tempfile::{tempdir, TempDir};
 
 use crate::iterators::StorageIterator;
-use crate::table::{SsTable, SsTableBuilder, SsTableIterator};
+use crate::table::{self, SsTable, SsTableBuilder, SsTableIterator};
 
 #[test]
 fn test_sst_build_single_key() {
     let mut builder = SsTableBuilder::new(16);
     builder.add(b"233", b"233333");
+    
     let dir = tempdir().unwrap();
     builder.build_for_test(dir.path().join("1.sst")).unwrap();
 }
@@ -23,9 +24,8 @@ fn test_sst_build_two_blocks() {
     builder.add(b"44", b"22");
     builder.add(b"55", b"11");
     builder.add(b"66", b"22");
-    assert!(builder.meta.len() >= 2);
-    let dir = tempdir().unwrap();
-    builder.build_for_test(dir.path().join("1.sst")).unwrap();
+    let sst = builder.build_for_test("./test").unwrap();
+    assert!(sst.block_meta.len() >= 2);
 }
 
 fn key_of(idx: usize) -> Vec<u8> {
@@ -66,6 +66,7 @@ fn test_sst_decode() {
     assert_eq!(new_sst.first_key(), &key_of(0));
     assert_eq!(new_sst.last_key(), &key_of(num_of_keys() - 1));
 }
+
 
 fn as_bytes(x: &[u8]) -> Bytes {
     Bytes::copy_from_slice(x)
