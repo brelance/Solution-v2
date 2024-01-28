@@ -5,8 +5,7 @@ pub(crate) mod bloom;
 mod builder;
 mod iterator;
 
-use std::fs::File;
-use std::io::Read;
+use std::fs::{File, OpenOptions};
 use std::os::windows::fs::FileExt;
 use std::path::Path;
 use std::sync::Arc;
@@ -108,7 +107,8 @@ impl FileObject {
     /// Create a new file object (day 2) and write the file to the disk (day 4).
     pub fn create(path: &Path, data: Vec<u8>) -> Result<Self> {
         std::fs::write(path, &data)?;
-        let file = File::open(path)?.sync_all()?;
+        let file = OpenOptions::new().write(true).open(path)?.sync_all()?;
+        // let file = File::open(path)?.sync_all()?;
         Ok(FileObject(
             Some(File::options().read(true).write(false).open(path)?),
             data.len() as u64,
@@ -218,7 +218,14 @@ impl SsTable {
 
     /// Read a block from the disk.
     pub fn read_block(&self, block_idx: usize) -> Result<Arc<Block>> {
-        unimplemented!()
+        let meta = &self.block_meta[block_idx];
+        
+        // bug
+        let block_size = self.block_meta[1].offset;
+        let block_slice = self.file.read(meta.offset as u64, block_size as u64)?;
+        let block = Block::decode(&block_slice);
+
+        Ok(Arc::new(block))
     }
 
     /// Read a block from disk, with block cache. (Day 4)

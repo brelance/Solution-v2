@@ -1,8 +1,12 @@
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, Seek, SeekFrom, Write};
+use std::os::windows::fs::FileExt;
 use std::sync::Arc;
+use anyhow::Result;
 
 use bytes::Bytes;
 use tempfile::{tempdir, TempDir};
-
+use std::path::{Path, PathBuf};
 use crate::iterators::StorageIterator;
 use crate::table::{self, SsTable, SsTableBuilder, SsTableIterator};
 
@@ -11,8 +15,34 @@ fn test_sst_build_single_key() {
     let mut builder = SsTableBuilder::new(16);
     builder.add(b"233", b"233333");
     
-    let dir = tempdir().unwrap();
-    builder.build_for_test(dir.path().join("1.sst")).unwrap();
+    // let dir = tempdir().unwrap();
+    let dir = PathBuf::from(".\\src\\tests\\day4_test").join("1.sst");
+    builder.build_for_test(dir.as_path()).unwrap();
+}
+
+#[test]
+fn file_io_test1() {
+    use std::io::BufReader;
+    let mut file = File::create("test.txt").expect("error");
+    file.write_all(b"hello").expect("error");
+
+    let file = File::open("test.txt").expect("error");
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        println!("{}", line.expect("Unable to read line"));
+    }
+}
+
+#[test]
+fn file_io_test2() ->Result<()> {
+    File::create("src\\tests\\day4_test\\1.sst")?;
+    
+    let pathbuf = PathBuf::from("src\\tests\\day4_test").join("2.sst.txt");
+    let contents = "hello world".to_string();
+    std::fs::write(pathbuf.as_path(), contents)?;
+    let file = OpenOptions::new().write(true).open(pathbuf.as_path()).unwrap();
+    file.sync_all()?;
+    Ok(())
 }
 
 #[test]

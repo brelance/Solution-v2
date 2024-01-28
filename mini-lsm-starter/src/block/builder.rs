@@ -147,7 +147,7 @@ mod user_tests {
 
     #[test]
     fn test_temp_dir() -> Result<()> {
-        use tempfile::{TempDir, tempdir};
+        use tempfile::{tempdir};
         let dir = tempdir().unwrap();
         let contents = b"abbbbb";
         std::fs::write(&dir, contents);
