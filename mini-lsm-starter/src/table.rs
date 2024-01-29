@@ -6,6 +6,7 @@ mod builder;
 mod iterator;
 
 use std::fs::{File, OpenOptions};
+use std::io::Read;
 use std::os::windows::fs::FileExt;
 use std::path::Path;
 use std::sync::Arc;
@@ -46,7 +47,6 @@ impl BlockMeta {
             buf.put_u16(meta.first_key.len() as u16);
             buf.extend_from_slice(&meta.first_key);
 
-            
             // Put the length of last key in the block
             buf.put_u16(meta.last_key.len() as u16);
             buf.extend_from_slice(&meta.last_key);
@@ -100,6 +100,11 @@ impl FileObject {
         Ok(data)
     }
 
+    pub fn read_to_buf(&self, offset: u64, buf: &mut [u8]) -> Result<()> {
+        self.0.as_ref().unwrap().seek_read(buf, offset)?;
+        Ok(())
+    }
+
     pub fn size(&self) -> u64 {
         self.1
     }
@@ -146,35 +151,38 @@ impl SsTable {
     /// Open SSTable from a file.
     pub fn open(id: usize, block_cache: Option<Arc<BlockCache>>, file: FileObject) -> Result<Self> {
         let offset = file.size() - 4;
-        let offset_len = 4;
         let mut buf = [0u8; 4];
 
-        file.read(offset, offset_len);
+        file.read_to_buf(offset, &mut buf);
         
         let block_meta_offset = u32::from_be_bytes(buf) as usize;
         let upbound = offset;
         
         let mut key_len_buf = [0u8; 2];
-        let key_len = 2;
-
         let mut block_meta = Vec::new();
         let mut meta_offset = block_meta_offset as u64;
+        
 
         while meta_offset < upbound {
             // Read offset of block
-            file.read(meta_offset, offset_len);
+            file.read_to_buf(meta_offset, &mut buf);
             let block_offset: u32 = u32::from_be_bytes(buf);
             meta_offset += 4;
 
-            file.read(meta_offset, key_len);
+            file.read_to_buf(meta_offset, &mut key_len_buf);
             let key_len = u16::from_be_bytes(key_len_buf) as u64;
             meta_offset += 2;
-            let first_key = file.read(meta_offset, key_len)?;
 
-            file.read(meta_offset, key_len);
+            let first_key = file.read(meta_offset, key_len)?;
+            meta_offset += key_len;
+
+            file.read_to_buf(meta_offset, &mut key_len_buf);
             let key_len = u16::from_be_bytes(key_len_buf) as u64;
             meta_offset += 2;
+
             let last_key = file.read(meta_offset, key_len)?;
+            meta_offset += key_len;
+
             
             block_meta.push(
                 BlockMeta {
@@ -183,11 +191,9 @@ impl SsTable {
                     last_key: last_key.into(),
                 }
             );
-
-            meta_offset += key_len;
         }
 
-        let block_size = (block_meta[1].offset - block_meta[0].offset) as usize;
+        // let block_size = (block_meta[1].offset - block_meta[0].offset) as usize;
         let first_key = block_meta.first().unwrap().first_key.clone();
         let last_key = block_meta.last().unwrap().last_key.clone();
         Ok(SsTable {
@@ -237,7 +243,9 @@ impl SsTable {
     /// Note: You may want to make use of the `first_key` stored in `BlockMeta`.
     /// You may also assume the key-value pairs stored in each consecutive block are sorted.
     pub fn find_block_idx(&self, key: &[u8]) -> usize {
-        unimplemented!()
+        self.block_meta
+            .partition_point(|meta| meta.first_key <= key)
+            .saturating_sub(1)
     }
 
     /// Get number of data blocks.
