@@ -140,6 +140,7 @@ pub struct SsTable {
     first_key: Bytes,
     last_key: Bytes,
     pub(crate) bloom: Option<Bloom>,
+    block_size: usize,
 }
 
 impl SsTable {
@@ -150,11 +151,15 @@ impl SsTable {
 
     /// Open SSTable from a file.
     pub fn open(id: usize, block_cache: Option<Arc<BlockCache>>, file: FileObject) -> Result<Self> {
-        let offset = file.size() - 4;
+        let mut offset = file.size() - 4;
         let mut buf = [0u8; 4];
 
+        //Read block size
         file.read_to_buf(offset, &mut buf);
-        
+        let block_size = u32::from_be_bytes(buf) as usize;
+        offset -= 4;
+
+        file.read_to_buf(offset, &mut buf);
         let block_meta_offset = u32::from_be_bytes(buf) as usize;
         let upbound = offset;
         
@@ -205,6 +210,7 @@ impl SsTable {
              first_key,
              last_key,
              bloom: None,
+             block_size,
         })
     }
 
@@ -219,6 +225,7 @@ impl SsTable {
             first_key,
             last_key,
             bloom: None,
+            block_size: 0,
         }
     }
 
@@ -227,8 +234,7 @@ impl SsTable {
         let meta = &self.block_meta[block_idx];
         
         // bug
-        let block_size = self.block_meta[1].offset;
-        let block_slice = self.file.read(meta.offset as u64, block_size as u64)?;
+        let block_slice = self.file.read(meta.offset as u64, self.block_size as u64)?;
         let block = Block::decode(&block_slice);
 
         Ok(Arc::new(block))

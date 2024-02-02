@@ -97,8 +97,13 @@ impl SsTableBuilder {
 
         BlockMeta::encode_block_meta(&self.meta, &mut data);
         data.put_u32(block_meta_offset as u32);
+        
+        // put block_size
+        // optimization
+        data.put_u32(self.block_size as u32);
 
         let mut file = FileObject::create(path.as_ref(), data)?;
+        
         
         //put block_meta_offset
         Ok(SsTable {
@@ -110,6 +115,7 @@ impl SsTableBuilder {
             first_key,
             last_key,
             bloom: None,
+            block_size: self.block_size,
         })
     }
 
