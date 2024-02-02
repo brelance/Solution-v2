@@ -1,7 +1,4 @@
-#![allow(dead_code)] // REMOVE THIS LINE after fully implementing this functionality
-
 use std::collections::HashMap;
-use std::mem;
 use std::ops::Bound;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
@@ -9,22 +6,20 @@ use std::sync::Arc;
 
 use anyhow::{Ok, Result};
 use bytes::Bytes;
-use clap::builder::StringValueParser;
 use parking_lot::{Mutex, RwLock, MutexGuard};
-use serde::de::value;
 
 use crate::block::Block;
 use crate::compact::{
     CompactionController, CompactionOptions, LeveledCompactionController, LeveledCompactionOptions,
     SimpleLeveledCompactionController, SimpleLeveledCompactionOptions, TieredCompactionController,
 };
-use crate::iterators::merge_iterator::{self, MergeIterator};
+use crate::iterators::merge_iterator::{MergeIterator};
 use crate::iterators::two_merge_iterator::TwoMergeIterator;
 use crate::iterators::StorageIterator;
 use crate::lsm_iterator::{FusedIterator, LsmIterator};
 use crate::manifest::Manifest;
-use crate::mem_table::{MemTable, MemTableIterator};
-use crate::table::{SsTable, SsTableIterator};
+use crate::mem_table::{MemTable};
+use crate::table::{SsTable, SsTableBuilder, SsTableIterator};
 
 pub type BlockCache = moka::sync::Cache<(usize, usize), Arc<Block>>;
 
@@ -132,7 +127,27 @@ impl Drop for MiniLsm {
 
 impl MiniLsm {
     pub fn close(&self) -> Result<()> {
-        unimplemented!()
+        self.flush_notifier.send(()).ok();
+
+        let mut flush_thread = self.flush_thread.lock();
+        if let Some(flush_thread) = flush_thread.take() {
+            flush_thread
+                .join()
+                .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+        }
+
+        if !self.inner.state.read().memtable.is_empty() {
+            self.inner.force_freeze_memtable(&self.inner.state_lock.lock())?;
+        }
+
+        while {
+            let snapshot = self.inner.state.read();
+            !snapshot.imm_memtables.is_empty()
+        } {
+            self.inner.force_flush_next_imm_memtable()?;
+        }
+
+        Ok(())
     }
 
     /// Start the storage engine by either loading an existing directory or creating a new one if the directory does
@@ -191,6 +206,7 @@ impl MiniLsm {
     pub fn force_full_compaction(&self) -> Result<()> {
         self.inner.force_full_compaction()
     }
+
 }
 
 impl LsmStorageInner {
@@ -318,18 +334,32 @@ impl LsmStorageInner {
         let mut snapshot  = guard.as_ref().clone();
 
         let freeze_memtable = std::mem::replace(&mut snapshot.memtable, Arc::new(MemTable::create(self.next_sst_id())));
-        
         snapshot.imm_memtables.push(freeze_memtable.clone());
         *guard = Arc::new(snapshot);
         
         Ok(())
     }
 
-    
 
     /// Force flush the earliest-created immutable memtable to disk
+    /// Race Condition?
     pub fn force_flush_next_imm_memtable(&self) -> Result<()> {
-        unimplemented!()
+        let mut guard = self.state.write();
+        let mut snapshot  = guard.as_ref().clone();
+
+        if let Some(imm_table) = snapshot.imm_memtables.pop() {
+            let mut sst_builder = SsTableBuilder::new(self.options.block_size);
+
+            imm_table.flush(&mut sst_builder)?;
+            
+            let sst = sst_builder.build(self.next_sst_id(), Some(self.block_cache.clone()), self.path.clone())?;
+            snapshot.l0_sstables.push(sst.sst_id());
+
+            snapshot.sstables.insert(sst.sst_id(), Arc::new(sst));
+            *guard = Arc::new(snapshot);
+        }
+
+        Ok(())
     }
 
     /// Create an iterator over a range of keys.
