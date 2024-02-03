@@ -2,21 +2,31 @@
 #![allow(dead_code)] // TODO(you): remove this lint after implementing this mod
 
 use anyhow::{Ok, Result, bail};
+use bytes::Bytes;
 
 use crate::{
-    iterators::{merge_iterator::MergeIterator, two_merge_iterator::TwoMergeIterator, StorageIterator}, mem_table::MemTableIterator, table::SsTableIterator
+    iterators::{merge_iterator::MergeIterator, two_merge_iterator::TwoMergeIterator, StorageIterator}, mem_table::{MemTableIterator, map_bound}, table::SsTableIterator
 };
+
+use std::ops::Bound;
 
 /// Represents the internal type for an LSM iterator. This type will be changed across the tutorial for multiple times.
 type LsmIteratorInner = TwoMergeIterator<MergeIterator<MemTableIterator>, MergeIterator<SsTableIterator>>;
 
 pub struct LsmIterator {
     inner: LsmIteratorInner,
+    end_bound: Bound<Bytes>,
+    is_valid: bool,
 }
 
 impl LsmIterator {
-    pub(crate) fn new(iter: LsmIteratorInner) -> Result<Self> {
-        let mut iter = Self { inner: iter };
+    pub(crate) fn new(iter: LsmIteratorInner, bound: Bound<&[u8]>) -> Result<Self> {
+        let end_bound = map_bound(bound);
+        let mut iter = Self {
+            is_valid: iter.is_valid(),
+            inner: iter,
+            end_bound,
+        };
         iter.skip_deleted()?;
         Ok(iter)
     }
@@ -24,7 +34,7 @@ impl LsmIterator {
 
 impl StorageIterator for LsmIterator {
     fn is_valid(&self) -> bool {
-        self.inner.is_valid()
+        self.is_valid
     }
 
     fn key(&self) -> &[u8] {
@@ -36,8 +46,28 @@ impl StorageIterator for LsmIterator {
     }
 
     fn next(&mut self) -> Result<()> {
+        if !self.is_valid {
+            return Ok(());
+        }
+
         self.inner.next()?;
+        if !self.inner.is_valid() {
+            self.is_valid = false;
+        }
         self.skip_deleted();
+        
+        if self.is_valid {
+            match self.end_bound.as_ref() {
+                Bound::Unbounded => {}
+                Bound::Included(key) => {
+                    self.is_valid = self.inner.key() <= key.as_ref();
+                },
+                Bound::Excluded(key) => {
+                    self.is_valid = self.inner.key() < key.as_ref();
+                },
+            }
+        }
+        
         Ok(())
     }
 }

@@ -133,3 +133,13 @@ impl SsTableBuilder {
         self.build(0, None, path)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_format() {
+        let id = 432;
+        let s = format!("{}.sst", id);
+        println!("{}", s);
+    }
+}

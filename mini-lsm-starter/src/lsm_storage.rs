@@ -262,10 +262,12 @@ impl LsmStorageInner {
         if value.as_ref().is_some_and(|v| v.is_empty()) { return Ok(None); }
 
         if value.is_none() {
-            let imem_iter = state.imm_memtables.iter().rev();
-            for imem in imem_iter {
+            let imems = state.imm_memtables.iter().rev();
+            for imem in imems {
                 if let Some(v) = imem.get(_key) {
-                    if !v.is_empty() {
+                    if v.is_empty() {
+                        return Ok(None);
+                    } else {
                         value = Some(v);
                         break;
                     }
@@ -273,7 +275,7 @@ impl LsmStorageInner {
             }
 
             if value.is_none() {
-                for idx in state.l0_sstables.iter() {
+                for idx in state.l0_sstables.iter().rev() {
                     let sst_iter = SsTableIterator::create_and_seek_to_key(state.sstables.get(idx).unwrap().clone(), _key)?;
                     if _key == sst_iter.key() {
                         if sst_iter.value().is_empty() {
@@ -352,7 +354,12 @@ impl LsmStorageInner {
 
             imm_table.flush(&mut sst_builder)?;
             
-            let sst = sst_builder.build(self.next_sst_id(), Some(self.block_cache.clone()), self.path.clone())?;
+            let sst_id = self.next_sst_id();
+            let sst = sst_builder.build(
+                sst_id,
+                Some(self.block_cache.clone()), 
+                self.path.join(format!("{}.sst", sst_id))
+            )?;
             snapshot.l0_sstables.push(sst.sst_id());
 
             snapshot.sstables.insert(sst.sst_id(), Arc::new(sst));
@@ -382,7 +389,7 @@ impl LsmStorageInner {
 
         let mut sst_iters = Vec::with_capacity(snapshot.l0_sstables.len());
 
-        for idx in snapshot.l0_sstables.iter() {
+        for idx in snapshot.l0_sstables.iter().rev() {
             let table = snapshot.sstables[idx].clone();
             let iter = match _lower {
                 Bound::Included(key) => {
@@ -405,6 +412,6 @@ impl LsmStorageInner {
 
         let iter = TwoMergeIterator::create(merge_mem_iter, merge_sst_iter)?;
         
-        Ok(FusedIterator::new(LsmIterator::new(iter)?))
+        Ok(FusedIterator::new(LsmIterator::new(iter, _upper)?))
     }
 }

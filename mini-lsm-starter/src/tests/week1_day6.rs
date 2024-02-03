@@ -40,16 +40,7 @@ fn test_task1_storage_scan() {
         assert_eq!(state.l0_sstables.len(), 2);
         assert_eq!(state.imm_memtables.len(), 2);
     }
-
-    check_iter_result(
-        &mut storage.scan(Bound::Unbounded, Bound::Unbounded).unwrap(),
-        vec![
-            (Bytes::from("0"), Bytes::from("2333333")),
-            (Bytes::from("00"), Bytes::from("2333")),
-            (Bytes::from("2"), Bytes::from("2333")),
-            (Bytes::from("3"), Bytes::from("23333")),
-        ],
-    );
+    
     check_iter_result(
         &mut storage
             .scan(Bound::Included(b"1"), Bound::Included(b"2"))
@@ -62,6 +53,17 @@ fn test_task1_storage_scan() {
             .unwrap(),
         vec![(Bytes::from("2"), Bytes::from("2333"))],
     );
+
+    check_iter_result(
+        &mut storage.scan(Bound::Unbounded, Bound::Unbounded).unwrap(),
+        vec![
+            (Bytes::from("0"), Bytes::from("2333333")),
+            (Bytes::from("00"), Bytes::from("2333")),
+            (Bytes::from("2"), Bytes::from("2333")),
+            (Bytes::from("3"), Bytes::from("23333")),
+        ],
+    );
+
 }
 
 #[test]
@@ -90,6 +92,7 @@ fn test_task1_storage_get() {
 
     {
         let state = storage.state.read();
+        assert!(!state.memtable.is_empty());
         assert_eq!(state.l0_sstables.len(), 2);
         assert_eq!(state.imm_memtables.len(), 2);
     }
@@ -110,9 +113,10 @@ fn test_task1_storage_get() {
         storage.get(b"3").unwrap(),
         Some(Bytes::from_static(b"23333"))
     );
-    assert_eq!(storage.get(b"4").unwrap(), None);
     assert_eq!(storage.get(b"--").unwrap(), None);
     assert_eq!(storage.get(b"555").unwrap(), None);
+    assert_eq!(storage.get(b"4").unwrap(), None);
+
 }
 
 #[test]

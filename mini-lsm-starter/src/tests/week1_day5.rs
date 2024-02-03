@@ -158,8 +158,8 @@ fn test_task2_storage_scan() {
     {
         let mut state = storage.state.write();
         let mut snapshot = state.as_ref().clone();
-        snapshot.l0_sstables.push(sst2.sst_id()); // this is the latest SST
         snapshot.l0_sstables.push(sst1.sst_id());
+        snapshot.l0_sstables.push(sst2.sst_id()); // this is the latest SST
         snapshot.sstables.insert(sst2.sst_id(), sst2.into());
         snapshot.sstables.insert(sst1.sst_id(), sst1.into());
         *state = snapshot.into();
@@ -218,8 +218,9 @@ fn test_task3_storage_get() {
     {
         let mut state = storage.state.write();
         let mut snapshot = state.as_ref().clone();
-        snapshot.l0_sstables.push(sst2.sst_id()); // this is the latest SST
         snapshot.l0_sstables.push(sst1.sst_id());
+
+        snapshot.l0_sstables.push(sst2.sst_id()); // this is the latest SST
         snapshot.sstables.insert(sst2.sst_id(), sst2.into());
         snapshot.sstables.insert(sst1.sst_id(), sst1.into());
         *state = snapshot.into();
