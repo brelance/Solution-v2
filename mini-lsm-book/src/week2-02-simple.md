@@ -7,6 +7,13 @@ In this chapter, you will:
 * Implement a simple leveled compaction strategy and simulate it on the compaction simulator.
 * Start compaction as a background task and implement a compaction trigger in the system.
 
+To copy the test cases into the starter code and run them,
+
+```
+cargo x copy-test --week 2 --day 2
+cargo x scheck
+```
+
 ## Task 1: Simple Leveled Compaction
 
 In this chapter, we are going to implement our first compaction strategy -- simple leveled compaction. In this task, you will need to modify:
@@ -159,6 +166,7 @@ You may print something, for example, the compaction task information, when the 
 * Actively choosing some old files/levels to compact even if they do not violate the level amplifier would be a good choice, is it true? (Look at the [Lethe](https://disc-projects.bu.edu/lethe/) paper!)
 * If the storage device can achieve a sustainable 1GB/s write throughput and the write amplification of the LSM tree is 10x, how much throughput can the user get from the LSM key-value interfaces?
 * Can you merge L1 and L3 directly if there are SST files in L2? Does it still produce correct result?
+* So far, we have assumed that our SST files use a monotonically increasing id as the file name. Is it okay to use `<level>_<begin_key>_<end_key>.sst` as the SST file name? What might be the potential problems with that? (You can ask yourself the same question in week 3...)
 * What is your favorite boba shop in your city? (If you answered yes in week 1 day 3...)
 
 We do not provide reference answers to the questions, and feel free to discuss about them in the Discord community.

@@ -87,7 +87,7 @@ fn test_block_iterator() {
     let mut iter = BlockIterator::create_and_seek_to_first(block);
     for _ in 0..5 {
         for i in 0..num_of_keys() {
-            let key = iter.key();
+            let key = iter.key().raw_ref();
             let value = iter.value();
             assert_eq!(
                 key,
@@ -115,7 +115,7 @@ fn test_block_seek_key() {
     let mut iter = BlockIterator::create_and_seek_to_key(block, &key_of(0));
     for offset in 1..=5 {
         for i in 0..num_of_keys() {
-            let key = iter.key();
+            let key = iter.key().raw_ref();
             let value = iter.value();
             assert_eq!(
                 key,

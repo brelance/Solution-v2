@@ -9,6 +9,7 @@ pub use builder::BlockBuilder;
 /// You may want to check `bytes::BufMut` out when manipulating continuous chunks of memory
 use bytes::{Bytes, BufMut};
 pub use iterator::BlockIterator;
+use crate::key::{self, KeyBytes};
 
 /// A block is the smallest unit of read and caching in LSM tree.
 /// It is a collection of sorted key-value pairs.
@@ -72,23 +73,25 @@ impl Block {
         return self.data.len() + self.offsets.len() * 2 + 2;
     }
 
-    pub fn first_key(&self) -> Bytes {
+    pub fn first_key(&self) -> KeyBytes {
         let mut key_len_buf = [0u8; 2];
         key_len_buf[0] = self.data[0];
         key_len_buf[1] = self.data[1];
 
         let key_len = u16::from_be_bytes(key_len_buf) as usize;
-        Bytes::copy_from_slice(&self.data[2..key_len + 2])
+        let bytes = Bytes::copy_from_slice(&self.data[2..key_len + 2]);
+        key::KeyBytes::from_bytes(bytes)
     }
 
-    pub fn last_key(&self) -> Bytes {
+    pub fn last_key(&self) -> KeyBytes {
         let offset = self.offsets.last().unwrap().clone() as usize;
         let mut key_len_buf = [0u8; 2];
         key_len_buf[0] = self.data[offset];
         key_len_buf[1] = self.data[offset + 1];
 
         let key_len = u16::from_be_bytes(key_len_buf) as usize;
-        Bytes::copy_from_slice(&self.data[offset + 2..offset + key_len + 2])
+        let bytes = Bytes::copy_from_slice(&self.data[offset + 2..offset + key_len + 2]);
+        key::KeyBytes::from_bytes(bytes)
     }
 }
 

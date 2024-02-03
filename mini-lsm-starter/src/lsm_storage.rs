@@ -39,6 +39,11 @@ pub struct LsmStorageState {
     pub sstables: HashMap<usize, Arc<SsTable>>,
 }
 
+pub enum WriteBatchRecord<T: AsRef<[u8]>> {
+    Put(T, T),
+    Del(T),
+}
+
 impl LsmStorageState {
     fn create(options: &LsmStorageOptions) -> Self {
         let levels = match &options.compaction_options {
@@ -60,6 +65,7 @@ impl LsmStorageState {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct LsmStorageOptions {
     // Block size in bytes
     pub block_size: usize,
@@ -69,6 +75,7 @@ pub struct LsmStorageOptions {
     pub num_memtable_limit: usize,
     pub compaction_options: CompactionOptions,
     pub enable_wal: bool,
+    pub serializable: bool,
 }
 
 impl LsmStorageOptions {
@@ -79,6 +86,7 @@ impl LsmStorageOptions {
             compaction_options: CompactionOptions::NoCompaction,
             enable_wal: false,
             num_memtable_limit: 50,
+            serializable: false,
         }
     }
 
@@ -89,8 +97,25 @@ impl LsmStorageOptions {
             compaction_options: CompactionOptions::NoCompaction,
             enable_wal: false,
             num_memtable_limit: 2,
+            serializable: false,
         }
     }
+
+    pub fn default_for_week2_test(compaction_options: CompactionOptions) -> Self {
+        Self {
+            block_size: 4096,
+            target_sst_size: 1 << 20, // 1MB
+            compaction_options,
+            enable_wal: false,
+            num_memtable_limit: 2,
+            serializable: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum CompactionFilter {
+    Prefix(Bytes),
 }
 
 /// The storage interface of the LSM tree.
@@ -103,6 +128,8 @@ pub(crate) struct LsmStorageInner {
     pub(crate) options: Arc<LsmStorageOptions>,
     pub(crate) compaction_controller: CompactionController,
     pub(crate) manifest: Option<Manifest>,
+    pub(crate) mvcc: Option<LsmMvccInner>,
+    pub(crate) compaction_filters: Arc<Mutex<Vec<CompactionFilter>>>,
 }
 
 /// A thin wrapper for `LsmStorageInner` and the user interface for MiniLSM.
@@ -165,6 +192,18 @@ impl MiniLsm {
             compaction_notifier: tx1,
             compaction_thread: Mutex::new(compaction_thread),
         }))
+    }
+
+    pub fn new_txn(&self) -> Result<()> {
+        self.inner.new_txn()
+    }
+
+    pub fn write_batch<T: AsRef<[u8]>>(&self, batch: &[WriteBatchRecord<T>]) -> Result<()> {
+        self.inner.write_batch(batch)
+    }
+
+    pub fn add_compaction_filter(&self, compaction_filter: CompactionFilter) {
+        self.inner.add_compaction_filter(compaction_filter)
     }
 
     pub fn get(&self, key: &[u8]) -> Result<Option<Bytes>> {
@@ -243,6 +282,8 @@ impl LsmStorageInner {
             compaction_controller,
             manifest: None,
             options: options.into(),
+            mvcc: None,
+            compaction_filters: Arc::new(Mutex::new(Vec::new())),
         };
 
         Ok(storage)
@@ -250,6 +291,11 @@ impl LsmStorageInner {
 
     pub fn sync(&self) -> Result<()> {
         unimplemented!()
+    }
+
+    pub fn add_compaction_filter(&self, compaction_filter: CompactionFilter) {
+        let mut compaction_filters = self.compaction_filters.lock();
+        compaction_filters.push(compaction_filter);
     }
 
     /// Get a key from the storage. In day 7, this can be further optimized by using a bloom filter.
@@ -291,6 +337,11 @@ impl LsmStorageInner {
         }
 
         Ok(value)
+    }
+
+    /// Write a batch of data into the storage. Implement in week 2 day 7.
+    pub fn write_batch<T: AsRef<[u8]>>(&self, _batch: &[WriteBatchRecord<T>]) -> Result<()> {
+        unimplemented!()
     }
 
     /// Put a key-value pair into the storage by writing into the current memtable.
@@ -366,6 +417,11 @@ impl LsmStorageInner {
             *guard = Arc::new(snapshot);
         }
 
+        Ok(())
+    }
+
+    pub fn new_txn(&self) -> Result<()> {
+        // no-op
         Ok(())
     }
 

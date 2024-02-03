@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use super::SsTable;
-use crate::{block::BlockIterator, iterators::StorageIterator};
+use crate::{block::BlockIterator, iterators::StorageIterator, key::KeySlice};
 
 /// An iterator over the contents of an SSTable.
 pub struct SsTableIterator {
@@ -52,7 +52,7 @@ impl SsTableIterator {
     pub fn seek_to_key(&mut self, key: &[u8]) -> Result<()> {
         let (mut block_iterator, mut block_idx) = Self::create_block_iterator_with_key(self.table.clone(), key)?;
 
-        if block_iterator.key() < key {
+        if block_iterator.key().raw_ref() < key {
             block_idx += 1;
             if block_idx < self.table.num_of_blocks() {
                 block_iterator = Self::create_and_seek_to_(self.table.clone(), block_idx)?;
@@ -83,8 +83,10 @@ impl SsTableIterator {
 }
 
 impl StorageIterator for SsTableIterator {
+    type KeyType<'a> = KeySlice<'a>;
+
     /// Return the `key` that's held by the underlying block iterator.
-    fn key(&self) -> &[u8] {
+    fn key(&self) -> KeySlice {
         self.block_iterator.key()
     }
 
@@ -129,7 +131,7 @@ mod tests {
     use super::{SsTableIterator, SsTable};
     use tempfile::{TempDir, tempdir};
     use crate::{iterators::StorageIterator, table::SsTableBuilder};
-    use std::sync::Arc;
+    use std::{io::Read, sync::Arc};
     use bytes::Bytes;
     
     fn key_of(idx: usize) -> Vec<u8> {
@@ -168,7 +170,7 @@ mod tests {
         let sst = Arc::new(sst);
 
         let mut iter = SsTableIterator::create_and_seek_to_first(sst).expect("error");
-        assert_eq!(iter.key(), key_of(0));
+        assert_eq!(iter.key().raw_ref(), key_of(0));
         assert_eq!(iter.value(), value_of(0))
     }
 
@@ -179,7 +181,7 @@ mod tests {
         let mut iter = SsTableIterator::create_and_seek_to_key(sst, &key_of(0)).unwrap();
         for offset in 1..=5 {
             for i in 0..num_of_keys() {
-                let key = iter.key();
+                let key = iter.key().raw_ref();
                 let value = iter.value();
                 assert_eq!(
                     key,

@@ -17,6 +17,7 @@ use bytes::{Buf, BufMut, Bytes};
 pub use iterator::SsTableIterator;
 
 use crate::block::Block;
+use crate::key::{KeyBytes, KeySlice};
 use crate::lsm_storage::BlockCache;
 
 use self::bloom::Bloom;
@@ -26,9 +27,9 @@ pub struct BlockMeta {
     /// Offset of this data block.
     pub offset: usize,
     /// The first key of the data block.
-    pub first_key: Bytes,
+    pub first_key: KeyBytes,
     /// The last key of the data block.
-    pub last_key: Bytes,
+    pub last_key: KeyBytes,
 }
 
 impl BlockMeta {
@@ -45,11 +46,11 @@ impl BlockMeta {
             buf.put_u32(meta.offset as u32);
             // Put the length of first key in the block
             buf.put_u16(meta.first_key.len() as u16);
-            buf.extend_from_slice(&meta.first_key);
+            buf.extend_from_slice(meta.first_key.raw_ref());
 
             // Put the length of last key in the block
             buf.put_u16(meta.last_key.len() as u16);
-            buf.extend_from_slice(&meta.last_key);
+            buf.extend_from_slice(meta.last_key.raw_ref());
         }
     }
 
@@ -60,10 +61,10 @@ impl BlockMeta {
         while buf.has_remaining() {
             let offset = buf.get_u32() as usize;
             let first_key_len = buf.get_u16() as usize;
-            let first_key = buf.copy_to_bytes(first_key_len);
+            let first_key = KeyBytes::from_bytes(buf.copy_to_bytes(first_key_len));
 
             let last_key_len = buf.get_u16() as usize;
-            let last_key = buf.copy_to_bytes(last_key_len);
+            let last_key = KeyBytes::from_bytes(buf.copy_to_bytes(last_key_len));
 
             metas.push(BlockMeta {
                 offset,
@@ -137,8 +138,8 @@ pub struct SsTable {
     pub(crate) block_meta_offset: usize,
     id: usize,
     block_cache: Option<Arc<BlockCache>>,
-    first_key: Bytes,
-    last_key: Bytes,
+    first_key: KeyBytes,
+    last_key: KeyBytes,
     pub(crate) bloom: Option<Bloom>,
     block_size: usize,
 }
@@ -178,22 +179,22 @@ impl SsTable {
             let key_len = u16::from_be_bytes(key_len_buf) as u64;
             meta_offset += 2;
 
-            let first_key = file.read(meta_offset, key_len)?;
+            let first_key = Bytes::from(file.read(meta_offset, key_len)?);
             meta_offset += key_len;
 
             file.read_to_buf(meta_offset, &mut key_len_buf);
             let key_len = u16::from_be_bytes(key_len_buf) as u64;
             meta_offset += 2;
 
-            let last_key = file.read(meta_offset, key_len)?;
+            let last_key = Bytes::from(file.read(meta_offset, key_len)?);
             meta_offset += key_len;
 
             
             block_meta.push(
                 BlockMeta {
                     offset: block_offset as usize,
-                    first_key: first_key.into(),
-                    last_key: last_key.into(),
+                    first_key: KeyBytes::from_bytes(first_key),
+                    last_key: KeyBytes::from_bytes(last_key),
                 }
             );
         }
@@ -215,7 +216,12 @@ impl SsTable {
     }
 
     /// Create a mock SST with only first key + last key metadata
-    pub fn create_meta_only(id: usize, file_size: u64, first_key: Bytes, last_key: Bytes) -> Self {
+    pub fn create_meta_only(
+        id: usize,
+        file_size: u64,
+        first_key: KeyBytes,
+        last_key: KeyBytes,
+    ) -> Self {
         Self {
             file: FileObject(None, file_size),
             block_meta: vec![],
@@ -250,7 +256,7 @@ impl SsTable {
     /// You may also assume the key-value pairs stored in each consecutive block are sorted.
     pub fn find_block_idx(&self, key: &[u8]) -> usize {
         self.block_meta
-            .partition_point(|meta| meta.first_key <= key)
+            .partition_point(|meta| meta.first_key.raw_ref() <= key)
             .saturating_sub(1)
     }
 
@@ -259,11 +265,11 @@ impl SsTable {
         self.block_meta.len()
     }
 
-    pub fn first_key(&self) -> &Bytes {
+    pub fn first_key(&self) -> &KeyBytes {
         &self.first_key
     }
 
-    pub fn last_key(&self) -> &Bytes {
+    pub fn last_key(&self) -> &KeyBytes {
         &self.last_key
     }
 
@@ -274,19 +280,25 @@ impl SsTable {
     pub fn sst_id(&self) -> usize {
         self.id
     }
+
+    pub fn max_ts(&self) -> u64 {
+        self.max_ts
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use tempfile::{tempdir, TempDir};
     use crate::table::{SsTable, SsTableBuilder};
+    use crate::key::{KeyBytes, KeySlice};
+    use bytes::Bytes;
 
-    fn key_of(idx: usize) -> Vec<u8> {
-        format!("key_{:03}", idx * 5).into_bytes()
+    fn key_of(idx: usize) -> KeyBytes {
+        KeyBytes::from_bytes(Bytes::from(format!("key_{:03}", idx * 5)))
     }
     
-    fn value_of(idx: usize) -> Vec<u8> {
-        format!("value_{:010}", idx).into_bytes()
+    fn value_of(idx: usize) -> KeyBytes {
+        KeyBytes::from_bytes(Bytes::from(format!("key_{:03}", idx * 5)))
     }
     
     fn num_of_keys() -> usize {

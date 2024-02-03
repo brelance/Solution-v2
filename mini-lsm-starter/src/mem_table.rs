@@ -10,8 +10,10 @@ use crossbeam_skiplist::SkipMap;
 use ouroboros::self_referencing;
 
 use crate::iterators::StorageIterator;
+use crate::key::KeySlice;
 use crate::table::SsTableBuilder;
 use crate::wal::Wal;
+use crate::key;
 use crossbeam_skiplist::map::Entry;
 
 /// A basic mem-table based on crossbeam-skiplist.
@@ -58,6 +60,22 @@ impl MemTable {
     /// Create a memtable from WAL
     pub fn recover_from_wal(_id: usize, _path: impl AsRef<Path>) -> Result<Self> {
         unimplemented!()
+    }
+
+    pub fn for_testing_put_slice(&self, key: &[u8], value: &[u8]) -> Result<()> {
+        self.put(key, value)
+    }
+
+    pub fn for_testing_get_slice(&self, key: &[u8]) -> Option<Bytes> {
+        self.get(key)
+    }
+
+    pub fn for_testing_scan_slice(
+        &self,
+        lower: Bound<&[u8]>,
+        upper: Bound<&[u8]>,
+    ) -> MemTableIterator {
+        self.scan(lower, upper)
     }
 
     /// Get a value by key.
@@ -152,12 +170,14 @@ impl MemTableIterator {
 }
 
 impl StorageIterator for MemTableIterator {
+    type KeyType<'a> = KeySlice<'a>;
+
     fn value(&self) -> &[u8] {
         &self.borrow_item().1
     }
 
-    fn key(&self) -> &[u8] {
-        &self.borrow_item().0
+    fn key(&self) -> KeySlice {
+        KeySlice::from_slice(&self.borrow_item().0)
     }
 
     fn is_valid(&self) -> bool {

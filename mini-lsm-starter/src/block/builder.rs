@@ -1,5 +1,7 @@
 use bytes::BufMut;
 
+use crate::key::{KeySlice, KeyVec};
+
 use super::Block;
 use std::{collections::{BTreeMap}};
 /// Builds a block.
@@ -100,22 +102,6 @@ impl BlockBuilder {
         }
 
         Block {data, offsets}    
-    }
-}
-
-struct Key {
-    key: Vec<u8>,
-}
-
-impl PartialEq for Key {
-    fn eq(&self, other: &Self) -> bool {
-        self.key.as_slice() == other.key.as_slice()
-    }
-}
-
-impl PartialOrd for Key {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.key.as_slice().cmp(&other.key.as_slice()))
     }
 }
 

@@ -7,6 +7,13 @@ In this chapter, you will:
 * Implement a leveled compaction strategy and simulate it on the compaction simulator.
 * Incorporate leveled compaction strategy into the system.
 
+To copy the test cases into the starter code and run them,
+
+```
+cargo x copy-test --week 2 --day 4
+cargo x scheck
+```
+
 ## Task 1: Leveled Compaction
 
 In chapter 2 day 2, you have implemented the simple leveled compaction strategies. However, the implementation has a few problems:
@@ -103,7 +110,7 @@ L3 and L4 needs to be compacted with their lower level respectively, while L5 do
 
 ### Task 1.4: Select SST to Compact
 
-Now, let us improve the problem that compaction always include a full level from the simple leveled compaction strategy. When we decide to compact two levels, we always select the oldest SST from the upper level. You can know the time that the SST is produced by comparing the SST id.
+Now, let us solve the problem that compaction always include a full level from the simple leveled compaction strategy. When we decide to compact two levels, we always select the oldest SST from the upper level. You can know the time that the SST is produced by comparing the SST id.
 
 There are other ways of choosing the compacting SST, for example, by looking into the number of delete tombstones. You can implement this as part of the bonus task.
 
@@ -161,7 +168,13 @@ The implementation should be similar to simple leveled compaction. Remember to c
 * Is it true that with a lower `level_size_multiplier`, you can always get a lower write amplification?
 * What needs to be done if a user not using compaction at all decides to migrate to leveled compaction?
 * Some people propose to do intra-L0 compaction (compact L0 tables and still put them in L0) before pushing them to lower layers. What might be the benefits of doing so? (Might be related: [PebblesDB SOSP'17](https://www.cs.utexas.edu/~rak/papers/sosp17-pebblesdb.pdf))
+* Consider the case that the upper level has two tables of `[100, 200], [201, 300]` and the lower level has `[50, 150], [151, 250], [251, 350]`. In this case, do you still want to compact one file in the upper level at a time? Why?
 
 We do not provide reference answers to the questions, and feel free to discuss about them in the Discord community.
+
+## Bonus Tasks
+
+* **SST Ingestion.** A common optimization of data migration / batch import in LSM trees is to ask the upstream to generate SST files of their data, and directly place these files in the LSM state without going through the write path.
+* **SST Selection.** Instead of selecting the oldest SST, you may think of other heuristics to choose the SST to compact.
 
 {{#include copyright.md}}

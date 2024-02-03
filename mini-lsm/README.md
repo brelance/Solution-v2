@@ -1,1 +1,0 @@
-# mini-lsm week-2 solution

@@ -93,8 +93,8 @@ fn test_sst_decode() {
     let meta = sst.block_meta.clone();
     let new_sst = SsTable::open_for_test(sst.file).unwrap();
     assert_eq!(new_sst.block_meta, meta);
-    assert_eq!(new_sst.first_key(), &key_of(0));
-    assert_eq!(new_sst.last_key(), &key_of(num_of_keys() - 1));
+    assert_eq!(new_sst.first_key().raw_ref(), &key_of(0));
+    assert_eq!(new_sst.last_key().raw_ref(), &key_of(num_of_keys() - 1));
 }
 
 

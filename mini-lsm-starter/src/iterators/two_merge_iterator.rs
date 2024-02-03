@@ -12,7 +12,11 @@ pub struct TwoMergeIterator<A: StorageIterator, B: StorageIterator> {
     // Add fields as need
 }
 
-impl<A: StorageIterator, B: StorageIterator> TwoMergeIterator<A, B> {
+impl<
+        A: 'static + StorageIterator,
+        B: 'static + for<'a> StorageIterator<KeyType<'a> = A::KeyType<'a>>,
+    > TwoMergeIterator<A, B>
+{
     pub fn create(iter_a: A, iter_b: B) -> Result<Self> {
         let mut current = true;
 
@@ -33,8 +37,14 @@ impl<A: StorageIterator, B: StorageIterator> TwoMergeIterator<A, B> {
     }
 }
 
-impl<A: StorageIterator, B: StorageIterator> StorageIterator for TwoMergeIterator<A, B> {
-    fn key(&self) -> &[u8] {
+impl<
+        A: 'static + StorageIterator,
+        B: 'static + for<'a> StorageIterator<KeyType<'a> = A::KeyType<'a>>,
+    > StorageIterator for TwoMergeIterator<A, B>
+{
+    type KeyType<'a> = A::KeyType<'a>;
+
+    fn key(&self) -> Self::KeyType<'_> {
         if self.current {
             self.iter_a.key()
         } else {
@@ -68,7 +78,7 @@ impl<A: StorageIterator, B: StorageIterator> StorageIterator for TwoMergeIterato
 
             if !self.iter_b.is_valid() { return Ok(()); }
 
-            match self.iter_a.key().cmp(self.iter_b.key()) {
+            match self.iter_a.key().cmp(&self.iter_b.key()) {
                 Ordering::Equal | Ordering::Less => {},
                 Ordering::Greater => self.current = false,
             }
@@ -81,7 +91,7 @@ impl<A: StorageIterator, B: StorageIterator> StorageIterator for TwoMergeIterato
 
             if !self.iter_a.is_valid() { return Ok(()); }
 
-            match self.iter_b.key().cmp(self.iter_a.key()) {
+            match self.iter_b.key().cmp(&self.iter_a.key()) {
                 Ordering::Equal | Ordering::Greater => { self.current = true; },
                 Ordering::Less => {}
             }
@@ -134,7 +144,7 @@ mod tests {
         let mut two_merger_iter = TwoMergeIterator::create(mem_iter, sst_iter)?;
         
         while two_merger_iter.is_valid() {
-            println!("key {:?} : value {:?}", as_bytes(two_merger_iter.key()), as_bytes(two_merger_iter.value()));
+            println!("key {:?} : value {:?}", as_bytes(two_merger_iter.key().raw_ref()), as_bytes(two_merger_iter.value()));
             two_merger_iter.next();
         }
 
@@ -156,7 +166,7 @@ mod tests {
         let mut two_merger_iter = TwoMergeIterator::create(mem_iter, sst_iter)?;
         
         while two_merger_iter.is_valid() {
-            println!("key {:?} : value {:?}", as_bytes(two_merger_iter.key()), as_bytes(two_merger_iter.value()));
+            println!("key {:?} : value {:?}", as_bytes(two_merger_iter.key().raw_ref()), as_bytes(two_merger_iter.value()));
             two_merger_iter.next();
         }
 

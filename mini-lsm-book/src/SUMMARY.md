@@ -13,21 +13,28 @@
   - [Write Path](./week1-06-write-path.md)
   - [Snack Time: SST Optimizations](./week1-07-sst-optimizations.md)
 
-- [Week 2 Overview: Compaction and Persistence](./week2-overview.md)
+- [Week 2 Overview: Compaction + Persistence](./week2-overview.md)
   - [Compaction Implementation](./week2-01-compaction.md)
   - [Simple Compaction Strategy](./week2-02-simple.md)
   - [Tiered Compaction Strategy](./week2-03-tiered.md)
   - [Leveled Compaction Strategy](./week2-04-leveled.md)
   - [Manifest](./week2-05-manifest.md)
   - [Write-Ahead Log (WAL)](./week2-06-wal.md)
-  - [Snack Time: Batch Write and Checksums (WIP)](./week2-07-snacks.md)
+  - [Snack Time: Batch Write and Checksums](./week2-07-snacks.md)
 
-- [Week 3 Overview: MVCC (WIP)](./week3-overview.md)
+- [Week 3 Overview: MVCC](./week3-overview.md)
+  - [Timestamp Encoding + Refactor](./week3-01-ts-key-refactor.md)
+  - [Snapshots - Memtables and Timestamps](./week3-02-snapshot-read-part-1.md)
+  - [Snapshots - Transaction API](./week3-03-snapshot-read-part-2.md)
+  - [Watermark and GC](./week3-04-watermark.md)
+  - [Transaction and OCC](./week3-05-txn-occ.md)
+  - [Serializable Snapshot Isolation](./week3-06-serializable.md)
+  - [Snack Time: Compaction Filters](./week3-07-compaction-filter.md)
 - [The Rest of Your Life (TBD)](./week4-overview.md)
 
 ---
 
-# Mini-LSM v1
+# DEPRECATED Mini-LSM v1
 
 - [Overview](./00-v1.md)
   - [Store key-value pairs in little blocks](./01-block.md)

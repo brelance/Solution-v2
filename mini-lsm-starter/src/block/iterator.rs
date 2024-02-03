@@ -1,12 +1,13 @@
 use super::Block;
 use std::sync::Arc;
+use crate::key::{KeySlice, KeyVec};
 
 /// Iterates on a block.
 pub struct BlockIterator {
     /// The internal `Block`, wrapped by an `Arc`
     block: Arc<Block>,
     /// The current key, empty represents the iterator is invalid
-    key: Vec<u8>,
+    key: KeyVec,
     /// The corresponding value, can be empty
     value: Vec<u8>,
     /// Current index of the key-value pair, should be in range of [0, num_of_elements)
@@ -22,7 +23,7 @@ impl BlockIterator {
         Self {
             nums_of_elements: block.offsets.len(),
             block,
-            key: Vec::new(),
+            key: KeyVec::new(),
             value: Vec::new(),
             idx: 0,
             is_valid: true,
@@ -59,8 +60,8 @@ impl BlockIterator {
     }
 
     /// Returns the key of the current entry.
-    pub fn key(&self) -> &[u8] {
-        &self.key
+    pub fn key(&self) -> KeySlice {
+        self.key.as_key_slice()
     }
 
     /// Returns the value of the current entry.
@@ -118,17 +119,17 @@ impl BlockIterator {
     }
 
     ///Note: This implement may cause bug. eg: "11".compare("2") == Less
-    fn seek_key(block: Arc<Block>, key: &[u8]) -> (Vec<u8>, Vec<u8>, usize) {
+    fn seek_key(block: Arc<Block>, key: &[u8]) -> (KeyVec, Vec<u8>, usize) {
         let mut left = 0;
         let elem_num: usize = block.offsets.len();
         let mut right = elem_num;
-        let (result_key, value) :(Vec<u8>, Vec<u8>);
+        let (result_key, value) :(KeyVec, Vec<u8>);
 
         while left < right {
             let mid: usize = left + (right - left) / 2;
-            let cur_key: Vec<u8> = BlockIterator::seek_key_within_index(block.clone(), mid);
+            let cur_key = BlockIterator::seek_key_within_index(block.clone(), mid);
 
-            match cur_key.as_slice().cmp(key) {
+            match cur_key.raw_ref().cmp(key) {
                 std::cmp::Ordering::Less => {
                     left = mid + 1;
                 }
@@ -148,22 +149,22 @@ impl BlockIterator {
         (result_key, value, left)
     }
 
-    fn seek_key_within_index(block: Arc<Block>, index: usize) -> Vec<u8> {
+    fn seek_key_within_index(block: Arc<Block>, index: usize) -> KeyVec {
         let offset = block.offsets[index] as usize;
 
         let key_len = u16::from_be_bytes([block.data[offset], block.data[offset + 1]]) as usize;
 
-        block.data[offset + 2..offset + key_len + 2].to_vec()
+        KeyVec::from_vec(block.data[offset + 2..offset + key_len + 2].to_vec())
     }
 
-    fn seek_kv_within_index(block: Arc<Block>, index: usize) -> (Vec<u8>, Vec<u8>) {
+    fn seek_kv_within_index(block: Arc<Block>, index: usize) -> (KeyVec, Vec<u8>) {
         let offset = block.offsets[index] as usize;
         let key_len = u16::from_be_bytes([block.data[offset], block.data[offset + 1]]) as usize;
 
         let value_len_pos = offset + key_len + 2;
         let value_len = u16::from_be_bytes([block.data[value_len_pos], block.data[value_len_pos + 1]]) as usize;
         
-        let key = block.data[offset + 2..offset + 2 + key_len].to_vec();
+        let key = KeyVec::from_vec(block.data[offset + 2..offset + 2 + key_len].to_vec());
         let value_pos = offset + key_len + 4;
         let value = block.data[value_pos..(value_pos + value_len)].to_vec();
         (key, value)
@@ -214,12 +215,12 @@ mod test {
         let mut iterator = BlockIterator::create_and_seek_to_first(Arc::new(block));
         
         assert_eq!(iterator.nums_of_elements, 2);
-        assert_eq!(b"122", iterator.key());
+        assert_eq!(b"122", iterator.key().raw_ref());
         assert_eq!(b"122222", iterator.value());
    
         iterator.next();
 
-        assert_eq!(b"233", iterator.key());
+        assert_eq!(b"233", iterator.key().raw_ref());
         assert_eq!(b"233333", iterator.value());
     }
 
@@ -236,7 +237,7 @@ mod test {
         
         assert_eq!(iterator.nums_of_elements, 5);
         iterator.seek_to_key(b"3");
-        assert_eq!(b"4", iterator.key())
+        assert_eq!(b"4", iterator.key().raw_ref())
         
     }
 
@@ -255,24 +256,24 @@ mod test {
         
         assert_eq!(iterator.nums_of_elements, 5);
         iterator.seek_to_key(b"key_3");
-        assert_eq!(b"key_4", iterator.key());
+        assert_eq!(b"key_4", iterator.key().raw_ref());
 
         iterator.seek_to_key(b"key_2");
-        assert_eq!(b"key_2", iterator.key());
+        assert_eq!(b"key_2", iterator.key().raw_ref());
 
         iterator.seek_to_key(b"key_1");
-        assert_eq!(b"key_1", iterator.key());
+        assert_eq!(b"key_1", iterator.key().raw_ref());
 
         iterator.seek_to_key(b"key_8");
-        assert_eq!(b"key_8", iterator.key());
+        assert_eq!(b"key_8", iterator.key().raw_ref());
 
 
         iterator.seek_to_key(b"key_4");
-        assert_eq!(b"key_4", iterator.key());
+        assert_eq!(b"key_4", iterator.key().raw_ref());
 
 
         iterator.seek_to_key(b"key_5");
-        assert_eq!(b"key_5", iterator.key());
+        assert_eq!(b"key_5", iterator.key().raw_ref());
     }
 
     #[test]
@@ -325,18 +326,18 @@ mod test {
             let key = key_of(idx);
             let value = value_of(idx);
             iter.seek_to_key(&key);
-            assert_eq!(&key, iter.key());
+            assert_eq!(&key, iter.key().raw_ref());
             assert_eq!(&value, iter.value());
         }
 
         iter.seek_to_key(&format!("key_{:03}", 4).into_bytes());
         let key_m = b"key_005";
         assert_eq!(
-            iter.key(),
+            iter.key().raw_ref(),
             key_m,
             "expected key: {:?}, actual key: {:?}",
             as_bytes(key_m),
-            as_bytes(iter.key())
+            as_bytes(iter.key().raw_ref())
         );
     }
 
@@ -348,18 +349,18 @@ mod test {
             let key = key_of(idx);
             let value = value_of(idx);
             iter.seek_to_key(&key);
-            assert_eq!(&key, iter.key());
+            assert_eq!(&key, iter.key().raw_ref());
             assert_eq!(&value, iter.value());
         }
 
         iter.seek_to_key(&format!("key_{:03}", 46).into_bytes());
         // let key_m = b"key_005";
         // assert_eq!(
-        //     iter.key(),
+        //     iter.key().raw_ref(),
         //     key_m,
         //     "expected key: {:?}, actual key: {:?}",
         //     as_bytes(key_m),
-        //     as_bytes(iter.key())
+        //     as_bytes(iter.key().raw_ref())
         // );
     }
     
@@ -396,8 +397,6 @@ mod test {
         let s1 = b"Key_000";
         let s2 = b"Key_004";
         assert_eq!(s1.cmp(&s2), std::cmp::Ordering::Less);
-
-
     }
 
 }

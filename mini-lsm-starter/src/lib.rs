@@ -8,6 +8,7 @@ pub mod manifest;
 pub mod mem_table;
 pub mod table;
 pub mod wal;
-
+pub mod key;
+pub mod mvcc;
 #[cfg(test)]
 mod tests;

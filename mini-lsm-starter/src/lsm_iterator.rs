@@ -33,6 +33,8 @@ impl LsmIterator {
 }
 
 impl StorageIterator for LsmIterator {
+    type KeyType<'a> = &'a [u8];
+
     fn is_valid(&self) -> bool {
         self.is_valid
     }
@@ -99,11 +101,13 @@ impl<I: StorageIterator> FusedIterator<I> {
 }
 
 impl<I: StorageIterator> StorageIterator for FusedIterator<I> {
+    type KeyType<'a> = I::KeyType<'a> where Self: 'a;
+
     fn is_valid(&self) -> bool {
         !self.has_error && self.iter.is_valid()
     }
 
-    fn key(&self) -> &[u8] {
+    fn key(&self) -> Self::KeyType<'_> {
         self.iter.key()
     }
 
