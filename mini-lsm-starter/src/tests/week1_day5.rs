@@ -1,7 +1,7 @@
 use std::ops::Bound;
 
-use self::harness::{check_iter_result_fuse, generate_sst};
-use self::harness::{check_iter_result_tm, MockIterator};
+use self::harnessv::{check_iter_result_fuse, generate_sst};
+use self::harnessv::{check_iter_result_tm, MockIterator};
 use bytes::Bytes;
 use tempfile::tempdir;
 
