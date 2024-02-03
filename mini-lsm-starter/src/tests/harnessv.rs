@@ -4,10 +4,7 @@ use anyhow::{bail, Result};
 use bytes::Bytes;
 
 use crate::{
-    iterators::{merge_iterator::MergeIterator, two_merge_iterator::TwoMergeIterator, StorageIterator},
-    lsm_storage::{BlockCache, LsmStorageInner},
-    table::{SsTable, SsTableBuilder},
-    lsm_iterator::{FusedIterator, LsmIterator},
+    iterators::{merge_iterator::MergeIterator, two_merge_iterator::TwoMergeIterator, StorageIterator}, key::KeySlice, lsm_iterator::{FusedIterator, LsmIterator}, lsm_storage::{BlockCache, LsmStorageInner}, table::{SsTable, SsTableBuilder}
 };
 use crate::key;
 
@@ -191,7 +188,7 @@ pub fn generate_sst(
 ) -> SsTable {
     let mut builder = SsTableBuilder::new(128);
     for (key, value) in data {
-        builder.add(&key[..], &value[..]);
+        builder.add(KeySlice::from_slice(&key[..]), &value[..]);
     }
     builder.build(id, block_cache, path.as_ref()).unwrap()
 }

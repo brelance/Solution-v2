@@ -5,7 +5,7 @@ use anyhow::{Result};
 use bytes::BufMut;
 
 use super::{BlockMeta, FileObject, SsTable};
-use crate::{block::{BlockBuilder, Block}, lsm_storage::BlockCache};
+use crate::{block::{Block, BlockBuilder}, key::KeySlice, lsm_storage::BlockCache};
 use std::collections::BTreeSet;
 
 /// Builds an SSTable from key-value pairs.
@@ -36,8 +36,8 @@ impl SsTableBuilder {
     ///
     /// Note: You should split a new block when the current block is full.(`std::mem::replace` may
     /// be helpful here)
-    pub fn add(&mut self, key: &[u8], value: &[u8]) {
-        if self.builder.add(key, value) {
+    pub fn add(&mut self, key: KeySlice, value: &[u8]) {
+        if self.builder.add(key.raw_ref(), value) {
             return;
 
         } else {
@@ -47,7 +47,7 @@ impl SsTableBuilder {
             self.blocks.insert(block);
             
             self.builder = BlockBuilder::new(self.block_size);
-            self.builder.add(key, value);
+            self.builder.add(key.raw_ref(), value);
         }
     }
 

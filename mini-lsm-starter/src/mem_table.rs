@@ -13,7 +13,6 @@ use crate::iterators::StorageIterator;
 use crate::key::KeySlice;
 use crate::table::SsTableBuilder;
 use crate::wal::Wal;
-use crate::key;
 use crossbeam_skiplist::map::Entry;
 
 /// A basic mem-table based on crossbeam-skiplist.
@@ -122,7 +121,7 @@ impl MemTable {
         for entry in self.map.iter() {
             //Debug
             // println!("[Memtable Debug]: Flush key {:?} : value: {:?}", entry.key(), entry.value());
-            builder.add(&entry.key(), &entry.value());
+            builder.add(KeySlice::from_slice(&entry.key()), &entry.value());
         }
         Ok(())
     }

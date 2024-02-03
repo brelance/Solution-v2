@@ -313,7 +313,7 @@ mod tests {
         for idx in 0..num_of_keys() {
             let key = key_of(idx);
             let value = value_of(idx);
-            builder.add(&key[..], &value[..]);
+            builder.add(KeySlice::from_slice(&key[..]), &value[..]);
         }
         let dir = tempdir().unwrap();
         let path = dir.path().join("1.sst");

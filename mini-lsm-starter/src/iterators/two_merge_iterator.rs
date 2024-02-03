@@ -2,6 +2,7 @@ use anyhow::{Ok, Result};
 
 use super::StorageIterator;
 use std::{cmp::Ordering};
+use crate::key::KeySlice;
 
 /// Merges two iterators of different types into one. If the two iterators have the same key, only
 /// produce the key once and prefer the entry from A.
@@ -107,6 +108,7 @@ mod tests {
     use anyhow::Ok;
 
     use crate::iterators::StorageIterator;
+    use crate::key::KeySlice;
     use crate::mem_table::*;
     use crate::table::*;
     use anyhow::Result;
@@ -128,11 +130,11 @@ mod tests {
         memtable.put(b"2", b"2222");
 
         let mut ssbuilder = SsTableBuilder::new(4096);
-        ssbuilder.add(b"1", b"423424");
+        ssbuilder.add(KeySlice::from_slice(b"1"), b"423424");
 
-        ssbuilder.add(b"3", b"111");
-        ssbuilder.add(b"4", b"3333");
-        ssbuilder.add(b"5", b"3333");
+        ssbuilder.add(KeySlice::from_slice(b"3"), b"111");
+        ssbuilder.add(KeySlice::from_slice(b"4"), b"3333");
+        ssbuilder.add(KeySlice::from_slice(b"5"), b"3333");
 
 
         let table = ssbuilder.build_for_test("./test")?;
@@ -158,7 +160,7 @@ mod tests {
         memtable.put(b"2", b"");
 
         let mut ssbuilder = SsTableBuilder::new(4096);
-        ssbuilder.add(b"1", b"233");
+        ssbuilder.add(KeySlice::from_slice(b"1"), b"233");
         let table = ssbuilder.build_for_test("./test")?;
         
         let mut mem_iter = memtable.scan(std::ops::Bound::Included(b"1"), std::ops::Bound::Included(b"2"));

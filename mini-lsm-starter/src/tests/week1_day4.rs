@@ -8,11 +8,12 @@ use tempfile::{tempdir, TempDir};
 use std::path::{PathBuf};
 use crate::iterators::StorageIterator;
 use crate::table::{SsTable, SsTableBuilder, SsTableIterator};
+use crate::key::KeySlice;
 
 #[test]
 fn test_sst_build_single_key() {
     let mut builder = SsTableBuilder::new(16);
-    builder.add(b"233", b"233333");
+    builder.add( KeySlice::from_slice(b"233"), b"233333");
     
     let dir = tempdir().unwrap();
     // let dir = PathBuf::from("./src/tests/day4_test").join("1.sst");
@@ -47,12 +48,12 @@ fn file_io_test2() ->Result<()> {
 #[test]
 fn test_sst_build_two_blocks() {
     let mut builder = SsTableBuilder::new(16);
-    builder.add(b"11", b"11");
-    builder.add(b"22", b"22");
-    builder.add(b"33", b"11");
-    builder.add(b"44", b"22");
-    builder.add(b"55", b"11");
-    builder.add(b"66", b"22");
+    builder.add(KeySlice::from_slice(b"11"), b"11");
+    builder.add(KeySlice::from_slice(b"22"), b"22");
+    builder.add(KeySlice::from_slice(b"33"), b"11");
+    builder.add(KeySlice::from_slice(b"44"), b"22");
+    builder.add(KeySlice::from_slice(b"55"), b"11");
+    builder.add(KeySlice::from_slice(b"66"), b"22");
     let sst = builder.build_for_test("./test").unwrap();
     assert!(sst.block_meta.len() >= 2);
 }
@@ -74,7 +75,7 @@ fn generate_sst() -> (TempDir, SsTable) {
     for idx in 0..num_of_keys() {
         let key = key_of(idx);
         let value = value_of(idx);
-        builder.add(&key[..], &value[..]);
+        builder.add(KeySlice::from_slice(&key[..]), &value[..]);
     }
     let dir = tempdir().unwrap();
     let path = dir.path().join("1.sst");
