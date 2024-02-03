@@ -20,6 +20,8 @@ use crate::lsm_iterator::{FusedIterator, LsmIterator};
 use crate::manifest::Manifest;
 use crate::mem_table::{MemTable};
 use crate::table::{SsTable, SsTableBuilder, SsTableIterator};
+use crate::mvcc::LsmMvccInner;
+
 
 pub type BlockCache = moka::sync::Cache<(usize, usize), Arc<Block>>;
 
@@ -323,7 +325,7 @@ impl LsmStorageInner {
             if value.is_none() {
                 for idx in state.l0_sstables.iter().rev() {
                     let sst_iter = SsTableIterator::create_and_seek_to_key(state.sstables.get(idx).unwrap().clone(), _key)?;
-                    if _key == sst_iter.key() {
+                    if _key == sst_iter.key().raw_ref() {
                         if sst_iter.value().is_empty() {
                             return Ok(None);
                         } else {
@@ -454,7 +456,7 @@ impl LsmStorageInner {
                 Bound::Excluded(key) => {
                     let mut iter = SsTableIterator::create_and_seek_to_key(table.clone(), key)?;
 
-                    if iter.is_valid() && iter.key() == key {
+                    if iter.is_valid() && iter.key().raw_ref() == key {
                         iter.next()?;
                     }
                     iter

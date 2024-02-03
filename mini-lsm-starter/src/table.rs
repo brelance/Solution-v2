@@ -142,6 +142,7 @@ pub struct SsTable {
     last_key: KeyBytes,
     pub(crate) bloom: Option<Bloom>,
     block_size: usize,
+    max_ts: u64,
 }
 
 impl SsTable {
@@ -212,6 +213,7 @@ impl SsTable {
              last_key,
              bloom: None,
              block_size,
+             max_ts: 0,
         })
     }
 
@@ -232,6 +234,7 @@ impl SsTable {
             last_key,
             bloom: None,
             block_size: 0,
+            max_ts: 0,
         }
     }
 
@@ -293,12 +296,12 @@ mod tests {
     use crate::key::{KeyBytes, KeySlice};
     use bytes::Bytes;
 
-    fn key_of(idx: usize) -> KeyBytes {
-        KeyBytes::from_bytes(Bytes::from(format!("key_{:03}", idx * 5)))
+    fn key_of(idx: usize) -> Vec<u8> {
+        format!("key_{:03}", idx * 5).into_bytes()
     }
     
-    fn value_of(idx: usize) -> KeyBytes {
-        KeyBytes::from_bytes(Bytes::from(format!("key_{:03}", idx * 5)))
+    fn value_of(idx: usize) -> Vec<u8> {
+        format!("value_{:010}", idx).into_bytes()
     }
     
     fn num_of_keys() -> usize {
@@ -323,7 +326,7 @@ mod tests {
         let meta = sst.block_meta.clone();
         let new_sst = SsTable::open_for_test(sst.file).unwrap();
         assert_eq!(new_sst.block_meta, meta);
-        assert_eq!(new_sst.first_key(), &key_of(0));
-        assert_eq!(new_sst.last_key(), &key_of(num_of_keys() - 1));
+        assert_eq!(new_sst.first_key().raw_ref(), &key_of(0));
+        assert_eq!(new_sst.last_key().raw_ref(), &key_of(num_of_keys() - 1));
     }
 }

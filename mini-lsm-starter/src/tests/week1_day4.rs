@@ -109,7 +109,7 @@ fn test_sst_iterator() {
     let mut iter = SsTableIterator::create_and_seek_to_first(sst).unwrap();
     for _ in 0..5 {
         for i in 0..num_of_keys() {
-            let key = iter.key();
+            let key = iter.key().raw_ref();
             let value = iter.value();
             assert_eq!(
                 key,
@@ -138,7 +138,7 @@ fn test_sst_seek_key() {
     let mut iter = SsTableIterator::create_and_seek_to_key(sst, &key_of(0)).unwrap();
     for offset in 1..=5 {
         for i in 0..num_of_keys() {
-            let key = iter.key();
+            let key = iter.key().raw_ref();
             let value = iter.value();
             assert_eq!(
                 key,

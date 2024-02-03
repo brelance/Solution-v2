@@ -116,6 +116,7 @@ impl SsTableBuilder {
             last_key,
             bloom: None,
             block_size: self.block_size,
+            max_ts: 0,
         })
     }
 

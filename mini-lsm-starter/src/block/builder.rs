@@ -130,15 +130,5 @@ mod user_tests {
         
         println!("string1.cmp(&string2): {:?}", string1.cmp(&string2)); // Ordering::Less
     }
-
-    #[test]
-    fn test_temp_dir() -> Result<()> {
-        use tempfile::{tempdir};
-        let dir = tempdir().unwrap();
-        let contents = b"abbbbb";
-        std::fs::write(&dir, contents);
-        let file = File::open(&dir)?.sync_all()?;
-        Ok(())
-    }
     
 }
