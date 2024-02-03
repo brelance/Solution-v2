@@ -3,7 +3,7 @@ use std::{ops::Bound, time::Duration};
 use bytes::Bytes;
 use tempfile::tempdir;
 
-use self::harness::{check_iter_result, sync};
+use self::harness::{check_iter_result_fuse, sync};
 
 use super::*;
 use crate::{
@@ -41,20 +41,20 @@ fn test_task1_storage_scan() {
         assert_eq!(state.imm_memtables.len(), 2);
     }
     
-    check_iter_result(
+    check_iter_result_fuse(
         &mut storage
             .scan(Bound::Included(b"1"), Bound::Included(b"2"))
             .unwrap(),
         vec![(Bytes::from("2"), Bytes::from("2333"))],
     );
-    check_iter_result(
+    check_iter_result_fuse(
         &mut storage
             .scan(Bound::Excluded(b"1"), Bound::Excluded(b"3"))
             .unwrap(),
         vec![(Bytes::from("2"), Bytes::from("2333"))],
     );
 
-    check_iter_result(
+    check_iter_result_fuse(
         &mut storage.scan(Bound::Unbounded, Bound::Unbounded).unwrap(),
         vec![
             (Bytes::from("0"), Bytes::from("2333333")),

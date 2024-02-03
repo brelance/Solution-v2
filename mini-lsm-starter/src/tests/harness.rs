@@ -4,7 +4,10 @@ use anyhow::{bail, Result};
 use bytes::Bytes;
 
 use crate::{
-    iterators::{merge_iterator::MergeIterator, StorageIterator}, key::Key, lsm_storage::{BlockCache, LsmStorageInner}, table::{SsTable, SsTableBuilder}
+    iterators::{merge_iterator::MergeIterator, two_merge_iterator::TwoMergeIterator, StorageIterator},
+    lsm_storage::{BlockCache, LsmStorageInner},
+    table::{SsTable, SsTableBuilder},
+    lsm_iterator::{FusedIterator, LsmIterator},
 };
 use crate::key;
 
@@ -80,7 +83,29 @@ pub fn as_bytes(x: &[u8]) -> Bytes {
     Bytes::copy_from_slice(x)
 }
 
-pub fn check_iter_result_d2(iter: &mut MergeIterator<MockIterator>, expected: Vec<(Bytes, Bytes)>) {
+pub fn check_iter_result_mock(iter: &mut MergeIterator<MockIterator>, expected: Vec<(Bytes, Bytes)>) {
+    for (k, v) in expected {
+        assert!(iter.is_valid());
+        assert_eq!(
+            k,
+            iter.key().raw_ref(),
+            "expected key: {:?}, actual key: {:?}",
+            k,
+            as_bytes(iter.key().raw_ref()),
+        );
+        assert_eq!(
+            v,
+            iter.value(),
+            "expected value: {:?}, actual value: {:?}",
+            v,
+            as_bytes(iter.value()),
+        );
+        iter.next().unwrap();
+    }
+    assert!(!iter.is_valid());
+}
+
+pub fn check_iter_result_tm(iter: &mut TwoMergeIterator<MockIterator, MockIterator>, expected: Vec<(Bytes, Bytes)>) {
     for (k, v) in expected {
         assert!(iter.is_valid());
         assert_eq!(
@@ -103,7 +128,30 @@ pub fn check_iter_result_d2(iter: &mut MergeIterator<MockIterator>, expected: Ve
 }
 
 
-pub fn check_iter_result_d21(iter: &mut crate::lsm_iterator::FusedIterator<crate::lsm_iterator::LsmIterator>, expected: Vec<(Bytes, Bytes)>) {
+
+pub fn check_iter_result_fuse(iter: &mut FusedIterator<LsmIterator>, expected: Vec<(Bytes, Bytes)>) {
+    for (k, v) in expected {
+        assert!(iter.is_valid());
+        assert_eq!(
+            k,
+            iter.key(),
+            "expected key: {:?}, actual key: {:?}",
+            k,
+            as_bytes(iter.key()),
+        );
+        assert_eq!(
+            v,
+            iter.value(),
+            "expected value: {:?}, actual value: {:?}",
+            v,
+            as_bytes(iter.value()),
+        );
+        iter.next().unwrap();
+    }
+    assert!(!iter.is_valid());
+}
+
+pub fn check_iter_result_lsm(iter: &mut crate::lsm_iterator::FusedIterator<crate::lsm_iterator::LsmIterator>, expected: Vec<(Bytes, Bytes)>) {
     for (k, v) in expected {
         assert!(iter.is_valid());
         assert_eq!(

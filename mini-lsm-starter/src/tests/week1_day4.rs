@@ -1,14 +1,13 @@
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, Seek, SeekFrom, Write};
-use std::os::windows::fs::FileExt;
+use std::io::{BufRead, Write};
 use std::sync::Arc;
 use anyhow::Result;
 
 use bytes::Bytes;
 use tempfile::{tempdir, TempDir};
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use crate::iterators::StorageIterator;
-use crate::table::{self, SsTable, SsTableBuilder, SsTableIterator};
+use crate::table::{SsTable, SsTableBuilder, SsTableIterator};
 
 #[test]
 fn test_sst_build_single_key() {
