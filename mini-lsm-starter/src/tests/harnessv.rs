@@ -7,6 +7,15 @@ use crate::{
     iterators::{merge_iterator::MergeIterator, two_merge_iterator::TwoMergeIterator, StorageIterator}, key::KeySlice, lsm_iterator::{FusedIterator, LsmIterator}, lsm_storage::{BlockCache, LsmStorageInner}, table::{SsTable, SsTableBuilder}
 };
 use crate::key;
+use env_logger;
+use log::LevelFilter;
+
+pub fn setup_logging() {
+    let _ = env_logger::builder()
+        .filter_level(LevelFilter::Trace)
+        .is_test(true)
+        .try_init();
+}
 
 #[derive(Clone)]
 pub struct MockIterator {

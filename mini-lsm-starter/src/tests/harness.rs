@@ -19,6 +19,16 @@ use crate::{
     table::{SsTable, SsTableBuilder, SsTableIterator},
 };
 
+use env_logger;
+use log::LevelFilter;
+
+pub fn setup_logging() {
+    let _ = env_logger::builder()
+        .filter_level(LevelFilter::Trace)
+        .is_test(true)
+        .try_init();
+}
+
 #[derive(Clone)]
 pub struct MockIterator {
     pub data: Vec<(Bytes, Bytes)>,
@@ -426,14 +436,14 @@ pub fn construct_merge_iterator_over_storage(
     state: &LsmStorageState,
 ) -> MergeIterator<SsTableIterator> {
     let mut iters = Vec::new();
-    for t in &state.l0_sstables {
+    for t in state.l0_sstables.iter().rev() {
         iters.push(Box::new(
             SsTableIterator::create_and_seek_to_first(state.sstables.get(t).cloned().unwrap())
                 .unwrap(),
         ));
     }
     for (_, files) in &state.levels {
-        for f in files {
+        for f in files.iter().rev() {
             iters.push(Box::new(
                 SsTableIterator::create_and_seek_to_first(state.sstables.get(f).cloned().unwrap())
                     .unwrap(),

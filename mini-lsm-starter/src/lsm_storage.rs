@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{Ok, Result};
 use bytes::Bytes;
+use log::{debug, info, trace};
 use parking_lot::{Mutex, RwLock, MutexGuard};
 
 use crate::block::Block;
@@ -16,6 +17,7 @@ use crate::compact::{
 use crate::iterators::merge_iterator::{MergeIterator};
 use crate::iterators::two_merge_iterator::TwoMergeIterator;
 use crate::iterators::StorageIterator;
+use crate::key;
 use crate::lsm_iterator::{FusedIterator, LsmIterator};
 use crate::manifest::Manifest;
 use crate::mem_table::{MemTable};
@@ -92,6 +94,17 @@ impl LsmStorageOptions {
         }
     }
 
+    pub fn my_default() -> Self {
+        Self {
+            block_size: 1024,
+            target_sst_size: 2 << 20,
+            compaction_options: CompactionOptions::NoCompaction,
+            enable_wal: false,
+            num_memtable_limit: 50,
+            serializable: false,
+        }
+    }
+
     pub fn default_for_week1_day6_test() -> Self {
         Self {
             block_size: 4096,
@@ -156,6 +169,7 @@ impl Drop for MiniLsm {
 
 impl MiniLsm {
     pub fn close(&self) -> Result<()> {
+        info!("Close Lsm Storage");
         self.flush_notifier.send(()).ok();
 
         let mut flush_thread = self.flush_thread.lock();
@@ -354,6 +368,7 @@ impl LsmStorageInner {
             self.force_freeze_memtable(&self.state_lock.lock())?;
         }
         
+        trace!("Put key: {:?} value: {:?} to memtable_{}", _key, _value, snapshot.memtable.id());
         snapshot.memtable.put(_key, _value)
     }
 
@@ -389,6 +404,8 @@ impl LsmStorageInner {
         let mut snapshot  = guard.as_ref().clone();
 
         let freeze_memtable = std::mem::replace(&mut snapshot.memtable, Arc::new(MemTable::create(self.next_sst_id())));
+        trace!("Freeze memtable_{} and then", freeze_memtable.id());
+
         snapshot.imm_memtables.push(freeze_memtable.clone());
         *guard = Arc::new(snapshot);
         
@@ -407,7 +424,7 @@ impl LsmStorageInner {
 
             imm_table.flush(&mut sst_builder)?;
             
-            let sst_id = self.next_sst_id();
+            let sst_id = imm_table.id();
             let sst = sst_builder.build(
                 sst_id,
                 Some(self.block_cache.clone()), 
@@ -415,6 +432,7 @@ impl LsmStorageInner {
             )?;
             snapshot.l0_sstables.push(sst.sst_id());
 
+            trace!("Create Sstable_{}", sst.sst_id());
             snapshot.sstables.insert(sst.sst_id(), Arc::new(sst));
             *guard = Arc::new(snapshot);
         }

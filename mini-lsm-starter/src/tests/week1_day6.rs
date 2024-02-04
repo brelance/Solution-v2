@@ -3,7 +3,8 @@ use std::{ops::Bound, time::Duration};
 use bytes::Bytes;
 use tempfile::tempdir;
 
-use self::harnessv::{check_iter_result_fuse, sync};
+use self::harnessv::{check_iter_result_fuse, sync, setup_logging};
+use env_logger;
 
 use super::*;
 use crate::{
@@ -13,6 +14,8 @@ use crate::{
 
 #[test]
 fn test_task1_storage_scan() {
+    // setup_logging();
+
     let dir = tempdir().unwrap();
     let storage = LsmStorageInner::open(&dir, LsmStorageOptions::default_for_week1_test()).unwrap();
     storage.put(b"0", b"2333333").unwrap();

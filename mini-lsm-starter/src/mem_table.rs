@@ -14,6 +14,7 @@ use crate::key::KeySlice;
 use crate::table::SsTableBuilder;
 use crate::wal::Wal;
 use crossbeam_skiplist::map::Entry;
+use log::{debug, trace};
 
 /// A basic mem-table based on crossbeam-skiplist.
 ///
@@ -38,10 +39,12 @@ pub(crate) fn map_bound(bound: Bound<&[u8]>) -> Bound<Bytes> {
 impl MemTable {
     /// Create a new mem-table.
     pub fn create(_id: usize) -> Self {
+        trace!("Create memetable_{}", _id);
+
         Self {
             map: Arc::new(SkipMap::new()),
             wal: None,
-            id: 0,
+            id: _id,
             approximate_size: Arc::new(AtomicUsize::new(0)),
         }
     }
@@ -51,7 +54,7 @@ impl MemTable {
         Ok(Self {
             map: Arc::new(SkipMap::new()),
             wal: Some(Wal::create(_path)?),
-            id: 0,
+            id: _id,
             approximate_size: Arc::new(AtomicUsize::new(0)),
         })
     }

@@ -120,6 +120,11 @@ impl SsTableBuilder {
         })
     }
 
+    // Current blockbuilder has one block and we should add this block which wating build.
+    pub fn nums_of_blocks(&self) -> usize {
+        self.nums_of_blocks() + 1
+    }
+
     fn total_block_size(&self) -> usize {
         self.blocks.len() * self.block_size
     }

@@ -104,10 +104,6 @@ impl<I: 'static + for<'a> StorageIterator<KeyType<'a> = KeySlice<'a>>> StorageIt
         let current = unsafe { self.current.as_mut().unwrap_unchecked() };
         // Pop the item out of the heap if they have the same value.
         while let Some(mut inner_iter) = self.iters.peek_mut() {
-            // debug_assert!(
-            //     inner_iter.1.key() >= current.1.key(),
-            //     "heap invariant violated"
-            // );
             if inner_iter.1.key() == current.1.key() {
                 // Case 1: an error occurred when calling `next`.
                 if let e @ Err(_) = inner_iter.1.next() {
