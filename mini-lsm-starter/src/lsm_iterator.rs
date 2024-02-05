@@ -17,6 +17,7 @@ type LsmIteratorInner = TwoMergeIterator<
     TwoMergeIterator<MergeIterator<MemTableIterator>, 
     MergeIterator<SsTableIterator>>, MergeIterator<SsTableIterator>
 >;
+
 pub struct LsmIterator {
     inner: LsmIteratorInner,
     end_bound: Bound<Bytes>,

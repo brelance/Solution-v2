@@ -349,8 +349,22 @@ impl LsmStorageInner {
                     }
                 }
             }
-            
+
+            if value.is_none() {
+                for idx in state.levels[0].1.iter().rev() {
+                    let sst_iter = SsTableIterator::create_and_seek_to_key(state.sstables.get(idx).unwrap().clone(), _key)?;
+                    if _key == sst_iter.key().raw_ref() {
+                        if sst_iter.value().is_empty() {
+                            return Ok(None);
+                        } else {
+                            value = Some(Bytes::copy_from_slice(sst_iter.value()));
+                            break;
+                        }
+                    }
+                }
+            }
         }
+            
 
         Ok(value)
     }
