@@ -22,9 +22,9 @@ use crate::{
 use env_logger;
 use log::LevelFilter;
 
-pub fn setup_logging() {
+pub fn setup_logging(level: LevelFilter) {
     let _ = env_logger::builder()
-        .filter_level(LevelFilter::Trace)
+        .filter_level(level)
         .is_test(true)
         .try_init();
 }

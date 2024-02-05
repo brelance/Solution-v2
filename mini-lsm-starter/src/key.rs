@@ -98,6 +98,10 @@ impl Key<Bytes> {
     pub fn for_testing_key_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
+
+    pub fn for_testing_key_bytes(&self) -> &Bytes {
+        &self.0
+    }
 }
 
 impl<'a> Key<&'a [u8]> {
@@ -125,6 +129,10 @@ impl<'a> Key<&'a [u8]> {
 
     pub fn for_testing_from_slice_with_ts(slice: &'a [u8], _ts: u64) -> Self {
         Self(slice)
+    }
+
+    pub fn for_testing_to_bytes(&self) -> Bytes {
+        Bytes::copy_from_slice(self.0)
     }
 }
 

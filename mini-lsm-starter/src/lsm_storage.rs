@@ -463,7 +463,7 @@ impl LsmStorageInner {
 
         let merge_mem_iter = MergeIterator::create(mem_iters);
 
-        let mut sst_iters = Vec::with_capacity(snapshot.l0_sstables.len());
+        let mut l0_iters = Vec::with_capacity(snapshot.l0_sstables.len());
 
         for idx in snapshot.l0_sstables.iter().rev() {
             let table = snapshot.sstables[idx].clone();
@@ -481,12 +481,38 @@ impl LsmStorageInner {
                 }
                 Bound::Unbounded => SsTableIterator::create_and_seek_to_first(table.clone())?,
             };
-            sst_iters.push(Box::new(iter));
+            l0_iters.push(Box::new(iter));
         }
 
-        let merge_sst_iter = MergeIterator::create(sst_iters);
+        let merge_l0_iter = MergeIterator::create(l0_iters);
+        
+        let mut l1_iters = Vec::with_capacity(snapshot.levels[0].1.len());
 
-        let iter = TwoMergeIterator::create(merge_mem_iter, merge_sst_iter)?;
+        for idx in snapshot.levels[0].1.iter().rev() {
+            let table = snapshot.sstables[idx].clone();
+            let iter = match _lower {
+                Bound::Included(key) => {
+                    SsTableIterator::create_and_seek_to_key(table.clone(), key)?
+                }
+                Bound::Excluded(key) => {
+                    let mut iter = SsTableIterator::create_and_seek_to_key(table.clone(), key)?;
+
+                    if iter.is_valid() && iter.key().raw_ref() == key {
+                        iter.next()?;
+                    }
+                    iter
+                }
+                Bound::Unbounded => SsTableIterator::create_and_seek_to_first(table.clone())?,
+            };
+            l1_iters.push(Box::new(iter));
+        }
+
+        let merge_l1_iter = MergeIterator::create(l1_iters);
+        // merge_memtable_level0_iterator
+        let mm0_iter = TwoMergeIterator::create(merge_mem_iter, merge_l0_iter)?;
+        
+        let iter = TwoMergeIterator::create(mm0_iter, merge_l1_iter)?;
+        
         
         Ok(FusedIterator::new(LsmIterator::new(iter, _upper)?))
     }

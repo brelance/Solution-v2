@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Result};
 use bytes::BufMut;
+use log::{debug, trace};
 
 use super::{BlockMeta, FileObject, SsTable};
 use crate::{block::{Block, BlockBuilder}, key::KeySlice, lsm_storage::BlockCache};
@@ -103,7 +104,7 @@ impl SsTableBuilder {
         data.put_u32(self.block_size as u32);
 
         let mut file = FileObject::create(path.as_ref(), data)?;
-        
+        debug!("Build sst_{}: key range {:?} - {:?}", id, first_key, last_key);
         
         //put block_meta_offset
         Ok(SsTable {

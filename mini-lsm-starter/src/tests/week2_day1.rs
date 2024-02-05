@@ -1,6 +1,6 @@
 use std::{ops::Bound, path::Path, sync::Arc};
 
-use self::harness::{check_iter_result_by_key, check_lsm_iter_result_by_key, sync};
+use self::harness::{check_iter_result_by_key, check_lsm_iter_result_by_key, sync, setup_logging};
 use bytes::Bytes;
 use tempfile::tempdir;
 use week2_day1::harness::construct_merge_iterator_over_storage;
@@ -12,6 +12,7 @@ use crate::{
     lsm_storage::{LsmStorageInner, LsmStorageOptions},
     table::{SsTable, SsTableBuilder},
 };
+use log::{LevelFilter};
 
 #[test]
 fn test_task1_full_compaction() {
@@ -155,6 +156,7 @@ fn generate_concat_sst(
 
 #[test]
 fn test_task2_concat_iterator() {
+    // setup_logging(LevelFilter::Debug);
     let dir = tempdir().unwrap();
     let mut sstables = Vec::new();
     for i in 1..=10 {

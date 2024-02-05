@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use super::SsTable;
-use crate::{block::BlockIterator, iterators::StorageIterator, key::KeySlice};
+use crate::{block::BlockIterator, iterators::StorageIterator, key::{Key, KeySlice}};
 
 /// An iterator over the contents of an SSTable.
 pub struct SsTableIterator {
