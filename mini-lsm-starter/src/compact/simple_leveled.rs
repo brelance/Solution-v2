@@ -1,6 +1,8 @@
+use std::{fmt::UpperHex, sync::Arc};
+
 use serde::{Deserialize, Serialize};
 
-use crate::lsm_storage::LsmStorageState;
+use crate::{lsm_storage::LsmStorageState, table::SsTable};
 
 #[derive(Debug, Clone)]
 pub struct SimpleLeveledCompactionOptions {
@@ -35,7 +37,39 @@ impl SimpleLeveledCompactionController {
         &self,
         _snapshot: &LsmStorageState,
     ) -> Option<SimpleLeveledCompactionTask> {
-        unimplemented!()
+        if _snapshot.l0_sstables.len() > self.options.level0_file_num_compaction_trigger {
+            let upper_level_sst_ids = _snapshot.l0_sstables.clone();
+            let lower_level_sst_ids = _snapshot.levels[0].1.clone();
+
+            return Some(SimpleLeveledCompactionTask {
+                upper_level: None,
+                upper_level_sst_ids,
+                lower_level: 1,
+                lower_level_sst_ids,
+                is_lower_level_bottom_level: false,
+            });
+        }
+
+        for idx in 0..self.options.max_levels - 1 {
+            let upper_level = &_snapshot.levels[idx];
+            let lower_level = &_snapshot.levels[idx + 1];
+
+            if upper_level.1.len() / lower_level.1.len() < self.options.size_ratio_percent {
+                
+                let upper_level_sst_ids = _snapshot.levels[idx].1.clone();
+                let lower_level_sst_ids = _snapshot.levels[idx + 1].1.clone();
+                return Some(SimpleLeveledCompactionTask {
+                    upper_level: Some(upper_level.0),
+                    upper_level_sst_ids,
+                    lower_level: lower_level.0,
+                    lower_level_sst_ids,
+                    is_lower_level_bottom_level: idx == self.options.max_levels - 2,
+                });
+            }
+        }
+
+        None
+        
     }
 
     /// Apply the compaction result.
@@ -51,6 +85,37 @@ impl SimpleLeveledCompactionController {
         _task: &SimpleLeveledCompactionTask,
         _output: &[usize],
     ) -> (LsmStorageState, Vec<usize>) {
-        unimplemented!()
+        let mut snapshot = _snapshot.clone();
+        let mut deleted_sst_id = Vec::new();
+        
+        if let Some(upper_level) = _task.upper_level {
+            let upper_idx = _task.lower_level - 1;
+            let lower_idx = upper_level - 1;
+            for &id in &snapshot.levels[upper_idx].1 {
+                deleted_sst_id.push(id);
+            }
+
+            for &id in &snapshot.levels[lower_idx].1 {
+                deleted_sst_id.push(id);
+            }
+
+            snapshot.levels[upper_idx].1 = Vec::new();
+
+            snapshot.levels[lower_idx].1 = _output.to_vec();
+        } else {
+            for &id in &snapshot.l0_sstables {
+                deleted_sst_id.push(id);
+            }
+
+            for &id in &snapshot.levels[0].1 {
+                deleted_sst_id.push(id);
+            }
+
+            snapshot.l0_sstables = Vec::new();
+
+            snapshot.levels[0].1 = _output.to_vec();
+        }
+
+        (snapshot, deleted_sst_id)
     }
 }
