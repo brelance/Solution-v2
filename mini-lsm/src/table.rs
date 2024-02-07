@@ -89,13 +89,30 @@ impl BlockMeta {
 pub struct FileObject(Option<File>, u64);
 
 impl FileObject {
+    // in unix like os
+    // pub fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>> {
+    //     use std::os::unix::fs::FileExt;
+    //     let mut data = vec![0; len as usize];
+    //     self.0
+    //         .as_ref()
+    //         .unwrap()
+    //         .read_exact_at(&mut data[..], offset)?;
+    //     Ok(data)
+    // }
+
     pub fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>> {
-        use std::os::unix::fs::FileExt;
+        // unimplemented!()
+        // use std::os::fs::FileExt;
+        // let mut data = vec![0; len as usize];
+        // self.0
+        //     .as_ref()
+        //     .unwrap()
+        //     .read_exact_at(&mut data[..], offset)?;
+        // Ok(data)
+        use std::os::windows::fs::FileExt;
         let mut data = vec![0; len as usize];
-        self.0
-            .as_ref()
-            .unwrap()
-            .read_exact_at(&mut data[..], offset)?;
+        let read_len = self.0.as_ref().unwrap().seek_read(&mut data, offset)?;
+        assert_eq!(len as usize, read_len);
         Ok(data)
     }
 
