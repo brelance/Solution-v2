@@ -1,13 +1,16 @@
 use std::collections::HashMap;
+use std::intrinsics::drop_in_place;
 use std::ops::Bound;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
 use anyhow::{Ok, Result};
+use arc_swap::Guard;
 use bytes::Bytes;
 use log::{debug, info, trace};
 use parking_lot::{Mutex, RwLock, MutexGuard};
+use serde::de;
 
 use crate::block::Block;
 use crate::compact::{
@@ -108,7 +111,7 @@ impl LsmStorageOptions {
     pub fn default_for_week1_day6_test() -> Self {
         Self {
             block_size: 4096,
-            target_sst_size: 2 << 20,
+            target_sst_size: 2 << 15,
             compaction_options: CompactionOptions::NoCompaction,
             enable_wal: false,
             num_memtable_limit: 2,
@@ -377,13 +380,20 @@ impl LsmStorageInner {
     /// Put a key-value pair into the storage by writing into the current memtable.
     pub fn put(&self, _key: &[u8], _value: &[u8]) -> Result<()> {
         let size = _key.len() + _value.len();
-        let snapshot = self.state.write();
-        if snapshot.memtable.approximate_size() + size > self.options.target_sst_size {
+        let should_freeze = {
+            let guard = self.state.read();
+            guard.memtable.approximate_size() + size > self.options.target_sst_size
+        };
+        // debug!("put: {:?}, {}, {}", test, guard.memtable.approximate_size(), self.options.target_sst_size);
+        if should_freeze {
+            debug!("force_freeze_memtable");
             self.force_freeze_memtable(&self.state_lock.lock())?;
         }
         
-        trace!("Put key: {:?} value: {:?} to memtable_{}", _key, _value, snapshot.memtable.id());
-        snapshot.memtable.put(_key, _value)
+        let guard = self.state.read();
+        guard.memtable.put(_key, _value)?;
+        trace!("Put key: {:?} value: {:?} to memtable_{}", _key, _value, guard.memtable.id());
+        Ok(())
     }
 
     /// Remove a key from the storage by writing an empty value.
@@ -414,11 +424,14 @@ impl LsmStorageInner {
 
     /// Force freeze the current memtable to an immutablea memtable
     pub fn force_freeze_memtable(&self, _state_lock_observer: &MutexGuard<'_, ()>) -> Result<()> {
+        debug!("Main_thread: Acquire write lock");
         let mut guard = self.state.write();
+        debug!("Main_thread: Acquire guard");
         let mut snapshot  = guard.as_ref().clone();
+        debug!("Main_thread: Acquire sna;shot");
 
         let freeze_memtable = std::mem::replace(&mut snapshot.memtable, Arc::new(MemTable::create(self.next_sst_id())));
-        trace!("Freeze memtable_{} and then", freeze_memtable.id());
+        debug!("Main_thread: Freeze memtable_{} and then", freeze_memtable.id());
 
         snapshot.imm_memtables.push(freeze_memtable.clone());
         *guard = Arc::new(snapshot);
@@ -430,26 +443,29 @@ impl LsmStorageInner {
     /// Force flush the earliest-created immutable memtable to disk
     /// Race Condition?
     pub fn force_flush_next_imm_memtable(&self) -> Result<()> {
+        debug!("Test");
+        self.state_lock.lock();
+
+        let flush_memtable = {
+            let guard = self.state.read();
+            guard.imm_memtables[0].clone()
+        };
+
+        let mut sst_builder = SsTableBuilder::new(self.options.block_size);
+        flush_memtable.flush(&mut sst_builder);
+        let flushed_id = flush_memtable.id();
+        let sst = sst_builder.build(flushed_id, None, self.path_of_sst(flushed_id))?;
+        
         let mut guard = self.state.write();
-        let mut snapshot  = guard.as_ref().clone();
+        let mut snapshot = guard.as_ref().clone();
 
-        if let Some(imm_table) = snapshot.imm_memtables.pop() {
-            let mut sst_builder = SsTableBuilder::new(self.options.block_size);
+        let imm_table = snapshot.imm_memtables.remove(0);
 
-            imm_table.flush(&mut sst_builder)?;
-            
-            let sst_id = imm_table.id();
-            let sst = sst_builder.build(
-                sst_id,
-                Some(self.block_cache.clone()), 
-                self.path.join(format!("{}.sst", sst_id))
-            )?;
-            snapshot.l0_sstables.push(sst.sst_id());
+        snapshot.l0_sstables.push(flushed_id);
+        snapshot.sstables.insert(flushed_id, Arc::new(sst));
 
-            trace!("Create Sstable_{}", sst.sst_id());
-            snapshot.sstables.insert(sst.sst_id(), Arc::new(sst));
-            *guard = Arc::new(snapshot);
-        }
+        debug!("Create Sstable_{}", flushed_id);
+        *guard = Arc::new(snapshot);
 
         Ok(())
     }

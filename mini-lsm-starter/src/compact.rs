@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use anyhow::{Ok, Result};
 pub use leveled::{LeveledCompactionController, LeveledCompactionOptions, LeveledCompactionTask};
-use log::{info, trace};
+use log::{debug, info, trace};
 use serde::{de, Deserialize, Serialize};
 pub use simple_leveled::{
     SimpleLeveledCompactionController, SimpleLeveledCompactionOptions, SimpleLeveledCompactionTask,
@@ -127,7 +127,6 @@ impl LsmStorageInner {
     }
 
     pub fn force_full_compaction(&self) -> Result<()> {
-        
         let (l0_sstables, l1_sstables) = {
             //optimization
             let state = self.state.read();
@@ -258,12 +257,16 @@ impl LsmStorageInner {
     }
 
     fn trigger_flush(&self) -> Result<()> {
-        let res = {
+        let should_flush = {
+            debug!("Flush_thread: Try acquire read lock");
             let state = self.state.read();
+            debug!("Flush_thread: Acquire read lock");
+
             state.imm_memtables.len() >= self.options.num_memtable_limit
         };
+        debug!("Flush_thread: should_flush[{:?}]", should_flush);
 
-        if res {
+        if should_flush {
             self.force_flush_next_imm_memtable()?;
         }
         
@@ -275,7 +278,8 @@ impl LsmStorageInner {
         rx: crossbeam_channel::Receiver<()>,
     ) -> Result<Option<std::thread::JoinHandle<()>>> {
         let this = self.clone();
-        let handle = std::thread::spawn(move || {
+        let handle: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+            debug!("spawn_flush_thread");
             let ticker = crossbeam_channel::tick(Duration::from_millis(50));
             loop {
                 crossbeam_channel::select! {

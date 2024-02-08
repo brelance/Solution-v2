@@ -6,8 +6,7 @@ mod builder;
 mod iterator;
 
 use std::fs::{File, OpenOptions};
-use std::io::Read;
-use std::os::windows::fs::FileExt;
+use std::os::unix::fs::FileExt;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -86,23 +85,20 @@ pub struct FileObject(Option<File>, u64);
 
 impl FileObject {
     pub fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>> {
-        // unimplemented!()
-        // use std::os::fs::FileExt;
-        // let mut data = vec![0; len as usize];
-        // self.0
-        //     .as_ref()
-        //     .unwrap()
-        //     .read_exact_at(&mut data[..], offset)?;
-        // Ok(data)
-
         let mut data = vec![0; len as usize];
-        let read_len = self.0.as_ref().unwrap().seek_read(&mut data, offset)?;
-        assert_eq!(len as usize, read_len);
+        self.0
+            .as_ref()
+            .unwrap()
+            .read_exact_at(&mut data[..], offset)?;
         Ok(data)
+        // let mut data = vec![0; len as usize];
+        // let read_len = self.0.as_ref().unwrap().seek_read(&mut data, offset)?;
+        // assert_eq!(len as usize, read_len);
+        // Ok(data)
     }
 
     pub fn read_to_buf(&self, offset: u64, buf: &mut [u8]) -> Result<()> {
-        self.0.as_ref().unwrap().seek_read(buf, offset)?;
+        self.0.as_ref().unwrap().read_exact_at(buf, offset)?;
         Ok(())
     }
 

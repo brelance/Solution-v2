@@ -4,7 +4,7 @@ use bytes::Bytes;
 use tempfile::tempdir;
 
 use self::harnessv::{check_iter_result_fuse, sync, setup_logging};
-use env_logger;
+use log::LevelFilter;
 
 use super::*;
 use crate::{
@@ -80,7 +80,7 @@ fn test_task1_storage_get() {
 
     storage.delete(b"4").unwrap();
     sync(&storage);
-
+    
     storage.put(b"1", b"233").unwrap();
     storage.put(b"2", b"2333").unwrap();
     storage
@@ -124,6 +124,7 @@ fn test_task1_storage_get() {
 
 #[test]
 fn test_task2_auto_flush() {
+    setup_logging(LevelFilter::Debug);
     let dir = tempdir().unwrap();
     let storage = MiniLsm::open(&dir, LsmStorageOptions::default_for_week1_day6_test()).unwrap();
 
